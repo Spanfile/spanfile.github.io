@@ -1,0 +1,168 @@
+---
+layout: post
+title: C# Gotchas
+date: '2017-08-09 18:08:00'
+tags:
+- programming
+- windows
+---
+
+Recently, I've been working on a couple of C# projects to try and bring myself up to date with .NET Core's latest development. Disregarding my issues with unit testing, I ran into some old 'gotchas' again that have been around for quite some time now, yet they are something I feel like aren't too well known at large. Here's my attempt to bring them out.
+
+## Primitive types and `System.String`
+
+It's common to think of C#'s primitive types as the types that have an alias assigned by default. These contain, for example; `int`, `string`, `bool` and `float`. However, there is some ambiguity over the definitions, especially for `string`.
+
+### The CLR
+
+The .NET CLR (Common Language Runtime) defines the following types to be primitive:
+
+- `System.Boolean`
+- `System.Byte`
+- `System.SByte`
+- `System.Int16`
+- `System.UInt16`
+- `System.Int32`
+- `System.UInt32`
+- `System.Int64`
+- `System.UInt64`
+- `System.IntPtr`
+- `System.UIntPtr`
+- `System.Char`
+- `System.Double`
+- `System.Single`
+
+Note that `System.String` is not listed. I don't know the exact reasoning for this, but my best guess is that because `System.String` is a reference type, it doesn't get to join the list of value types. The [`Type.IsPrimitive`](https://msdn.microsoft.com/en-us/library/system.type.isprimitive.aspx) property can be used to check if a given type is a primitive type in the CLR.
+
+### C#'s specification
+
+The <abbr title="It comes packed with every Visual Studio installation. Mine is over at C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\VC#\Specifications\1033">C# specification (version 4)</abbr> doesn't talk about primitive types at all. The specification defines so-called simple types; they are defined as "value types that have a keyword alias in C#". This immediately excludes `System.String` - it is a reference type after all.
+
+However, `System.String` still behaves as if it was one of the simple types:
+
+- It has a keyword alias (`string`)
+- It has three (three!) constant literals available - regular, verbatim and interpolated
+
+All in all, you should be fine treating `System.String` as a 'primitive' type in your code, but it's useful to know what's actually going on under the hood.
+
+### Quick sidenote: the keyword aliases
+
+Using the keyword aliases is as if the compiler automatically prefixes all your classes with
+
+    using short = System.Int16;
+    using int = System.Int32;
+    using long = System.Int64;
+    using float = System.Single;
+    // etc.
+
+However, there is one situation where it matters whether you use the keyword aliases or the types: enum underlying type definition. When defining the underlying type for an `enum`, you _have_ to use the keyword aliases.
+
+    internal enum MyEnum : long // valid
+    {
+        Value1, ...
+    }
+
+    internal enum MyEnum : System.Int64 // invalid
+    {
+        Value1, ...
+    }
+
+## Value types versus reference types
+
+Most (if not all) C# programmers find themselves pondering over the distinction between these two types of, well, types. I'm going to assume you know the basic differences (how they behave when passed around etc.), but I'll cover some topics that aren't immediately obvious.
+
+### Where they reside in memory
+
+It's common to think of value types being in the stack, and reference types being in the heap - always. This is more-or-less true, but not guaranteed. You can easily instantiate a value type and it'll end up in the stack:
+
+    int constructedInt = new System.Int32(5);
+
+You can also box a value type to `object`: a reference type.
+
+    object intObject = 5;
+
+It's ambiguous where these types exactly reside in memory, but here's the deal: you don't have to care. This is C# after all, the compiler and runtime abstract the memory away from you, only throwing `OutOfMemoryException`s when you allocate too much of it.
+
+### All value types are immutable by default whereas reference types are mutable
+
+This is false. Well, the 'by default' part is. To make a value type immutable, you have to make it such yourself. Most (if not all) value types defined in the CLR or C# specification are immutable. A classic counter-example is the `Point`-struct in both Windows Forms and Windows Presentation Foundation.
+
+    internal struct MutableStruct
+    {
+        public int Value;
+        
+        public MutableStruct(int value)
+        {
+            Value = value;
+        }
+    }
+    ...
+    var mutable = new MutableStruct(5);
+    Console.WriteLine(mutable.Value);
+    mutable.Value = 10;
+    Console.WriteLine(mutable.Value);
+
+This code compiles just fine and behaves as you'd expect it to - it first prints `5`, then `10`. However, please don't do this. If you have to modify a struct, provide operators or methods (or both) to derive a completely new instance derived from the original. (Don't forget to mark your fields as `readonly` to make them properly immutable.)
+
+Reference types are just as mutable as value types, but they too can be made immutable. The difference is that it's commonly accepted to have mutable reference types.
+
+## Readonly automatic properties
+
+When defining a property that generates its own backing field automatically, you can omit the setter to make the property read-only. Properties are often associated to be a native getter-setter pattern (because that's what they compile down to), it's possible to minify the property definition through some syntactic sugar. Rather than having to define the (hopefully) private backing field yourself, you can omit the bodies for the getter and setter to have the compiler generate the backing field for you.
+
+    public string MyProperty { get; set; }
+
+As such, it's possible to omit the setter completely to make the property read-only. However, because of the previously mentioned association with the getter-setter pattern, you'd think the setter is entirely gone and you can't set its value at all. This is obviously counter-intuitive: you do want to set the value to something. It would make sense to forget the compiler trick - define the backing field and have your getter return that.
+
+    private string backingField;
+    
+    public string MyProperty
+    {
+        get
+        {
+            return backingField;
+        }
+    }
+
+(There are more syntactic sugars available here related to expression bodies, but I've decided to omit them to have the example be clear.)
+
+Here, it's possible to define `backingField` as `readonly` and set its value in a constructor, just as you would with any other `readonly` field.
+
+The thing is; when you omit the setter in an automatic property, you can still set its value in the constructor, just as if it was a `readonly` field.
+
+    public string MyProperty { get; }
+    
+    public MyClass(string stringValue)
+    {
+        MyProperty = stringValue;
+    }
+
+This is not immediately obvious, because there's no `readonly` keyword anywhere indicating the read-only-ness of the member, which is why I wanted to mention it.
+
+## Default access modifiers
+
+When omitting the access modifier from a class, struct or a member, the compiler will assign a default one. It's common to think that members will end up being `private`, and classes and structs are `public`. This is not true, however. The compiler will assign the _most restrictive modifier possible_ if the modifier is omitted. Here's a table of the default access modifiers:
+
+| Thing | Default access modifier |
+| --- | --- |
+| Top-level class | internal |
+| Nested class | private |
+| Interface | internal |
+| Class members | private |
+| Explicitly implemented interface member | public |
+| Interface and enum members | public |
+| Property getter and setter | public |
+| Constructor | private |
+| Delegate | internal |
+
+Important things to note:
+
+- If you omit a constructor, the compiler will generate a default `public` constructor with no parameters.
+- It's not possible to define an access modifier for a namespace. Namespaces are `public` by default.
+- The getter and setter of a property are the one exception to the rule stated above. It's possible to define a more restrictive modifier to either of them, such as `protected` for the getter and `private` for the setter.
+
+## Conclusion
+
+These are by far not all of the 'gotchas' you'll run into, but these are the ones I ran into lately and wanted to bring out.
+
+<!--kg-card-end: markdown-->
