@@ -9,3 +9,4 @@ github_username:  spanfile
 theme: minima
 plugins:
   - jekyll-feed
+  - jekyll-sitemap
