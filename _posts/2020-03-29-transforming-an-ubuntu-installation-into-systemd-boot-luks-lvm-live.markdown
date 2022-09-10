@@ -15,7 +15,7 @@ Quick word of warning, this post is in no way written to be a complete guide on 
 
 ## Starting off
 
-The initial partitions lok as such:
+The initial partitions look as such:
 
 | Partition | Size | Filesystem | Mountpoint |
 | --- | --- | --- | --- |
@@ -24,8 +24,8 @@ The initial partitions lok as such:
 | sda3 | 560G | ext4 | /home |
 | sda4 | 50G | ext4 | /var |
 | sda5 | 380G | ext4 | / |
-| ‌ | | | |
-| Pretty standard stuff. What I'm aiming to achieve here is to get something like: | | | |
+
+Pretty standard stuff. What I'm aiming to achieve here is to get something like:
 
 | Partition | Size | Filesystem | Mountpoint |
 | --- | --- | --- | --- |

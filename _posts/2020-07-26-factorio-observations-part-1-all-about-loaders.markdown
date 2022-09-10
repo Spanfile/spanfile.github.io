@@ -11,7 +11,7 @@ This post is part of an ongoing series about designs I've come up with and commo
 
 I am using the wonderful [Loaders Redux](https://mods.factorio.com/mod/LoaderRedux) mod by Optera ([Github](https://github.com/Yousei9/Loader-Redux)), which adds these devices to load/unload containers, machines and trains as fast as a belt will allow. They're tiered the same way as belts are, so there will always be a loader available to keep a belt saturated or consume a saturated belt.
 
-<figure class="kg-card kg-image-card kg-card-hascaption"><img src="/content/images/2020/07/loaders.png" class="kg-image" alt loading="lazy" width="1023" height="290" srcset="/content/images/size/w600/2020/07/loaders.png 600w, /content/images/size/w1000/2020/07/loaders.png 1000w, /content/images/2020/07/loaders.png 1023w" sizes="(min-width: 720px) 720px"><figcaption>Loaders, love'em.</figcaption></figure>
+![Loaders, love 'em.](/assets/2020/07/loaders.png)
 
 They're like super fucking fast inserters, ok? How many inserters do you need to saturate a belt? Don't even care, I got loaders.
 
@@ -25,28 +25,29 @@ A 3x3 machine, most common one probably being the assembling machine. Other size
 
 This design has the machines stacked, separated by one tile. The entire design is 9 tiles wide. Input on the left, output on the right. One belt - or a pair of belts - feeding into the input splitter will feed as many machines as the belt will allow. The same thing happens on the output side as well, except to the other direction of course.
 
-<figure class="kg-card kg-image-card kg-card-hascaption"><img src="/content/images/2020/07/1-1.png" class="kg-image" alt loading="lazy" width="522" height="463"><figcaption>One input, one output. Taller variation.</figcaption></figure>
+![One input, one output. Taller variation.](/assets/2020/07/1-1.png)
 
 Alternatively, trading horizontal space for vertical space savings, the machines can be stacked touching each other and instead use 11 tiles horizontally. Same principles still apply.
 
-<figure class="kg-card kg-image-card kg-card-hascaption"><img src="/content/images/2020/07/2.png" class="kg-image" alt loading="lazy" width="856" height="505" srcset="/content/images/size/w600/2020/07/2.png 600w, /content/images/2020/07/2.png 856w" sizes="(min-width: 720px) 720px"><figcaption>w i d e</figcaption></figure>
+![w i d e](/assets/2020/07/2.png)
+
 * * *
 
 Okay so how about more than one belt as input? Two belts going in is still simple, requiring only belts and splitters (and the loaders of course). Again, two different designs, although this time with a different tradeoff.
 
 Both of these designs build upon the 9-wide one above with just the one input. They both start off by nudging the machines one more tile apart to make space for the new loader. The difference between the two is where the new input comes in from. First design; both inputs from the same direction.
 
-<figure class="kg-card kg-image-card kg-card-hascaption"><img src="/content/images/2020/07/3.png" class="kg-image" alt loading="lazy" width="713" height="654" srcset="/content/images/size/w600/2020/07/3.png 600w, /content/images/2020/07/3.png 713w"><figcaption>These two just can't ever get together</figcaption></figure>
+![These two just can't ever get together](/assets/2020/07/3.png)
 
 The newly added belt is just like in the 11-wide design seen earlier, now essentially combining both designs. The design is taller and wider, but it has two belts feeding each machine. As usual, the output can be anything since the input side could just be mirrored to the output to have as many outputs as needed.
 
 _But wait_, we could nudge the machines even further apart to save a tile of horizontal space. Now there's an entire machine's worth of empty space between the two, but the input column is still just four tiles wide.
 
-<figure class="kg-card kg-image-card kg-card-hascaption"><img src="/content/images/2020/07/7.png" class="kg-image" alt loading="lazy" width="705" height="829" srcset="/content/images/size/w600/2020/07/7.png 600w, /content/images/2020/07/7.png 705w"><figcaption>Even further apart, even more compact</figcaption></figure>
+![Even further apart, even more compact](/assets/2020/07/7.png)
 
 _And that's not all_, the new input belt can be turned around to instead come in from the opposite side to the already existing input, which also results in the input column being four tiles wide, and it doesn't require the machines to be so far apart. It also entirely fills the empty gaps left behind which is _so neat_.
 
-<figure class="kg-card kg-image-card kg-card-hascaption"><img src="/content/images/2020/07/4.png" class="kg-image" alt loading="lazy" width="636" height="921" srcset="/content/images/size/w600/2020/07/4.png 600w, /content/images/2020/07/4.png 636w"><figcaption>just look at how tightly packed that input side is</figcaption></figure>
+![just look at how tightly packet that input side is](/assets/2020/07/4.png)
 
 This of course means the inputs are on the opposite sides to the machines, which may cause issues with keeping the machines fed. Note that it's possible to run an underground belt through the rightmost tile column of the input side to get the second input to the other side from the same side as the first input, which would fill the input column to the _max_.
 
@@ -58,7 +59,7 @@ How about three input belts? At this point - and honestly even earlier - you sho
 
 Okay, what about liquids? Luckily pipes are way more flexible than belts (even if they're made of solid metal), so their placement can be dictated more easily. The pipe input is simply a line that runs alongside the machines, and the machines tap into it however. And since the one-input-belt design from earlier leaves a nice little gap to fit a pipe into, it all comes together _so neat_.
 
-<figure class="kg-card kg-image-card kg-card-hascaption"><img src="/content/images/2020/07/5.png" class="kg-image" alt loading="lazy" width="636" height="554" srcset="/content/images/size/w600/2020/07/5.png 600w, /content/images/2020/07/5.png 636w"><figcaption>The pipe fits right in</figcaption></figure>
+![The pipe fits right in](/assets/2020/07/5.png)
 
 Could even save a couple underground pipes and have two adjacent machines use the same pipe as input.
 
@@ -66,7 +67,7 @@ Could even save a couple underground pipes and have two adjacent machines use th
 
 The ideas behind these designs, once figured out, can be exploited to the extreme to fit machines together as close as possible while still weaving in multiple inputs and outputs, both belt and liquid. This is an example of a design for the 5x5 Angel's Floatation cell that has an input of one belt and liquid, and an output of two belts and a liquid. The design actually has two columns of the machines facing "away" from each other with both inputs and half of the output on the inside of the machine columns, and the rest on the outside.
 
-<figure class="kg-card kg-image-card kg-card-hascaption"><img src="/content/images/2020/07/6.png" class="kg-image" alt loading="lazy" width="876" height="596" srcset="/content/images/size/w600/2020/07/6.png 600w, /content/images/2020/07/6.png 876w" sizes="(min-width: 720px) 720px"><figcaption>It took me a long time to figure this one out</figcaption></figure>
+![It took me a long time to figure this one out](/assets/2020/07/6.png)
 
 So that's machines, what about containers?
 
@@ -78,7 +79,7 @@ I'm sure you understand how loaders and containers interact, but the earlier poi
 
 Except there's another caveat. Loaders can't interact with the circuit network directly, so in order to control them letting stuff in or out, we have to control the belt directly next to them.
 
-<figure class="kg-card kg-image-card kg-card-hascaption"><img src="/content/images/2020/07/10.png" class="kg-image" alt loading="lazy" width="432" height="329"><figcaption>yain't gettin' in</figcaption></figure>
+![yain't gettin' in](/assets/2020/07/10.png)
 
 Problem solved!
 

@@ -167,7 +167,7 @@ Setting up bcache requires constructing a new bcache device out of a backing ass
 
 Since everyone loves diagrams and pictures and whatnot, here's a sort-of diagram on how the whole setup is built, not including the KVM host because I couldn't figure out a nice way to display it. Just take my word there's an SSD and two HDDs underlying the respective drives.
 
-<figure class="kg-card kg-image-card"><img src="/content/images/2021/03/rpi-iscsi-1.png" class="kg-image" alt loading="lazy" width="722" height="303" srcset="/content/images/size/w600/2021/03/rpi-iscsi-1.png 600w, /content/images/2021/03/rpi-iscsi-1.png 722w" sizes="(min-width: 720px) 720px"></figure>
+![RPi ISCSi layout](/assets/2021/03/rpi-iscsi.png)
 
 While this article may seem quite straightforward, all in all this process spanned (pun intended) over a month or so, debugging weird issues and trying to get all the bits and pieces into place. A lot of alcohol was spent. And even now, it's not perfect. iSCSI over a wireless connection in the init RAM environment isn't that great of an idea (who would've fucking thought?) and just outright doesn't work. Still haven't figured out why. I have a hunch it's about the wireless interface's MTU though.
 

@@ -9,6 +9,8 @@ tags:
 
 My "core" LAN network consists of two rackmounted switches and a router. After moving into a new apartment, I didn't want to keep them in a zero-ventilation closet on the other side of the apartment, so I thought I'd put my massive desk to good use and build a small rack to stick the network gear in, and keep it on my desk for ease of use and good ventilation.
 
+![The finished rack](/assets/2021/01/desktop-rack.jpg)
+
 ## The components
 
 The pre-existing network components are:

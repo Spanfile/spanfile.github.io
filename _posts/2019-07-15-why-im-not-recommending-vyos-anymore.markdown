@@ -136,7 +136,6 @@ Reading this configuration is very straight-forward; define aliases for interfac
 
 I can't speak on your behalf but at least to me, that is a million and then some times easier to reason about than a bunch of `iptables` commands strung together in a file (_cough_ `iptables-save` _cough_). And since it's still just netfilter in the background, the same filtering and NAT'ing principles apply; the configuration just doesn't want me throwing things (including myself) out the window.
 
-<!--kg-card-end: markdown--><figure class="kg-card kg-image-card kg-card-hascaption"><img src="/content/images/2019/07/image.png" class="kg-image" alt loading="lazy"><figcaption>Jan Engelhardt [CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0)]</figcaption></figure>
 ## The rest
 
 This setup doesn't unfortunately have a unifying configuration tool built-in (but I'm working on one), so for now Ansible is the best choice for external configuration. I haven't actually set it up for this yet, but knowing Ansible's flexibility and the available playbooks for [networking](https://github.com/aruhier/ansible-role-systemd-networkd), [FRR](https://github.com/mrlesmithjr/ansible-frr) and [nftables](https://github.com/ipr-cnrs/nftables) it'll be a breeze getting it going.

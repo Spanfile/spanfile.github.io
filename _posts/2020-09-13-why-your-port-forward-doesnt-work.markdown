@@ -14,7 +14,7 @@ I'll assume the port-forward is done correctly; the rules are correct, the addre
 
 The simple way to model your home network is as such:
 
-<figure class="kg-card kg-image-card"><img src="/content/images/2020/08/port-forward-1.png" class="kg-image" alt loading="lazy" width="682" height="202" srcset="/content/images/size/w600/2020/08/port-forward-1.png 600w, /content/images/2020/08/port-forward-1.png 682w"></figure>
+![Simple home network diagram](/assets/2020/08/port-forward-1.png)
 
 That cloud there is the Internet (through your ISP), then you got your router box to which all your devices are connected. In this scenario your router is plugged "directly" into the Internet and thus, is assigned an external address from the public address space (whether its v4 or v6 addresses).
 
@@ -40,11 +40,10 @@ This is the opposite to the above. Instead of allowing services only in their st
 
 Remember that network diagram from earlier? And the external address checking? It's very likely your network doesn't look like that, but instead looks like:
 
-<figure class="kg-card kg-image-card"><img src="/content/images/2020/08/port-forward-2.png" class="kg-image" alt loading="lazy" width="792" height="202" srcset="/content/images/size/w600/2020/08/port-forward-2.png 600w, /content/images/2020/08/port-forward-2.png 792w" sizes="(min-width: 720px) 720px"></figure>
+![Much more realistic network diagram](/assets/2020/08/port-forward-2.png)
 
 The box on the left there is your ISP, from which you get to the Internet (the cloud). Now, instead of your router being plugged "directly" to the Internet, your ISP has another router doing NAT in between, in the same manner as your router does NAT. This is known as double-NAT or CGNAT (Carrier Grade NAT). The reason your ISP does this is because of IPv4 address space exhaustion. In the grand scheme of things there aren't that many v4 addresses, and they've all been allocated to some entities for years now. Effectively it means we've ran out of addresses.
 
 What ISPs do to help with this issue is stick multiple customers behind a router that adds a layer of NAT. This allows the ISP to have hundreds (if not thousands) of customers behind just one public v4 address, instead of assigning each customer their own address (the previous scenario). This, however, means that there's no way you can get any new traffic into your network. None. Here, your router's external address is just some private address in your ISP's double-NAT'ed network, and your publicly visible address is that of the router's doing the double-NAT. Just like your router doing port-forwarding, in order for the new connections to reach you, they'd have to get through your ISP's double-NAT'ing router which you have no control over. And no, your ISP is not going to add a port-forward there for you.
 
 Unfortunately there's not much you can do about this. You could contact your ISP and ask for a public address, but it's unlikely to happen. This kind of topology is very common in mobile connections, and sometimes on older DSL connections. Your best bet would be to get a proper broadband connection, of course researching beforehand if the connection plan gives you a public external address.
-

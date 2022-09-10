@@ -7,7 +7,7 @@ tags:
 - linux
 ---
 
-Like everyone and their mother-in-law, I have a local Grafana instance with a bunch of dashboards filled with graphs and bar gauges about things in my network. I have a [desktop network rack](/6u-desktop-network-rack-build/) with space on the top for a spare 24" monitor I have, so I thought I'd make a "24/7" Grafana kiosk display on it with a Raspberry Pi.
+Like everyone and their mother-in-law, I have a local Grafana instance with a bunch of dashboards filled with graphs and bar gauges about things in my network. I have a [desktop network rack](/2021/01/11/6u-desktop-network-rack-build.html) with space on the top for a spare 24" monitor I have, so I thought I'd make a "24/7" Grafana kiosk display on it with a Raspberry Pi.
 
 I'll be using standard Xorg and Chromium, and X11VNC for remote control. They'll all be controlled and ran with systemd user-units for the `pi` user. My reason for the separate services is that many other guides online for a similar kiosk run Xorg and Chromium directly from `.bashrc` or the like, which wouldn't allow restarting Chromium itself very easily, which is essential especially during testing the setup. Using separate services for Xorg and Chromium lets me restart either at will without having to reboot the entire Pi.
 
@@ -134,5 +134,6 @@ Much like the other services, it too is set to run on user login.
 
 If everything works correct, the Pi should be safe to reboot and it'll automatically log in after booting, run Xorg and open Chromium to the Grafana dashboard playlist.
 
-If you're interested, my two Pis run PowerDNS Recursor with a custom tool I developed called [Singularity](https://github.com/Spanfile/Singularity), which configures Recursor to reply with a null route to known malicious domains. I've [written about it here](/i-thought-pihole-was-kinda-bad-so-i-made-my-own/). The tool exports a `blocked-domains` stat among the other Recursor stats, which the DNS dashboard displays.
+![The final dashboard, as seen via VNC](/assets/2021/01/Screenshot-from-2021-01-18-19-31-18.png)
 
+If you're interested, my two Pis run PowerDNS Recursor with a custom tool I developed called [Singularity](https://github.com/Spanfile/Singularity), which configures Recursor to reply with a null route to known malicious domains. I've [written about it here](/2020/11/15/i-thought-pihole-was-kinda-bad-so-i-made-my-own.html). The tool exports a `blocked-domains` stat among the other Recursor stats, which the DNS dashboard displays.
