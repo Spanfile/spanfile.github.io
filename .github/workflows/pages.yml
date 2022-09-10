@@ -27,8 +27,7 @@ jobs:
     - uses: helaili/jekyll-action@v2
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
+        target_branch: main
       env:
         JEKYLL_PAT: ${{ secrets.JEKYLL_PAT }}
-      with:
-        target_branch: main
 
