@@ -14,7 +14,10 @@ If you haven't heard of DN42 before, their site says it's a "dynamic interconnec
 I've hid a certain theme in the network, see if you can figure it out! Shouldn't be too difficult ;)
 
 # The network
-<figure class="kg-card kg-image-card kg-width-full"><img src=" __GHOST_URL__ /content/images/2021/12/Spans-DN42.drawio-2.svg" class="kg-image" alt loading="lazy" width="2200" height="1164"></figure>
+
+This network diagram is an SVG, feel free to open it in a new tab to get a clearer view.
+
+![The network diagram](/assets/2021/12/Spans-DN42.svg)
 
 Let's start from the beginning. I want to use the network to learn about company networking; different interconnected sites, the various internal services, public services and so on. I picked the AS number 4242422038. I've been allocated (well, I chose to allocate myself) an IPv4 block, 172.23.38.128/27 and an IPv6 block fd38:119:314::/48. I picked a scheme that lets me split the space into various sites and their subnets. IPv4 allocations from the public block are more-or-less arbitrary, since it's so small. Right now I've just split it into two /28s. If I need more in the future, I might just request another /27 instead of splitting these further into even smaller blocks.
 
