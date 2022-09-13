@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>C# Gotchas | Spans’ Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="C# Gotchas" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Recently, I’ve been working on a couple of C# projects to try and bring myself up to date with .NET Core’s latest development. Disregarding my issues with unit testing, I ran into some old ‘gotchas’ again that have been around for quite some time now, yet they are something I feel like aren’t too well known at large. Here’s my attempt to bring them out." />
+<meta property="og:description" content="Recently, I’ve been working on a couple of C# projects to try and bring myself up to date with .NET Core’s latest development. Disregarding my issues with unit testing, I ran into some old ‘gotchas’ again that have been around for quite some time now, yet they are something I feel like aren’t too well known at large. Here’s my attempt to bring them out." />
+<link rel="canonical" href="https://blog.spans.fi/2017/08/09/c-gotchas.html" />
+<meta property="og:url" content="https://blog.spans.fi/2017/08/09/c-gotchas.html" />
+<meta property="og:site_name" content="Spans’ Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2017-08-09T18:08:00+00:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="C# Gotchas" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2017-08-09T18:08:00+00:00","datePublished":"2017-08-09T18:08:00+00:00","description":"Recently, I’ve been working on a couple of C# projects to try and bring myself up to date with .NET Core’s latest development. Disregarding my issues with unit testing, I ran into some old ‘gotchas’ again that have been around for quite some time now, yet they are something I feel like aren’t too well known at large. Here’s my attempt to bring them out.","headline":"C# Gotchas","mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.spans.fi/2017/08/09/c-gotchas.html"},"url":"https://blog.spans.fi/2017/08/09/c-gotchas.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="https://blog.spans.fi/feed.xml" title="Spans' Blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Spans&#39; Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">C# Gotchas</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2017-08-09T18:08:00+00:00" itemprop="datePublished">Aug 9, 2017
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p>Recently, I’ve been working on a couple of C# projects to try and bring myself up to date with .NET Core’s latest development. Disregarding my issues with unit testing, I ran into some old ‘gotchas’ again that have been around for quite some time now, yet they are something I feel like aren’t too well known at large. Here’s my attempt to bring them out.</p>
+
+<h2 id="primitive-types-and-systemstring">Primitive types and <code class="language-plaintext highlighter-rouge">System.String</code></h2>
+
+<p>It’s common to think of C#’s primitive types as the types that have an alias assigned by default. These contain, for example; <code class="language-plaintext highlighter-rouge">int</code>, <code class="language-plaintext highlighter-rouge">string</code>, <code class="language-plaintext highlighter-rouge">bool</code> and <code class="language-plaintext highlighter-rouge">float</code>. However, there is some ambiguity over the definitions, especially for <code class="language-plaintext highlighter-rouge">string</code>.</p>
+
+<h3 id="the-clr">The CLR</h3>
+
+<p>The .NET CLR (Common Language Runtime) defines the following types to be primitive:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">System.Boolean</code></li>
+  <li><code class="language-plaintext highlighter-rouge">System.Byte</code></li>
+  <li><code class="language-plaintext highlighter-rouge">System.SByte</code></li>
+  <li><code class="language-plaintext highlighter-rouge">System.Int16</code></li>
+  <li><code class="language-plaintext highlighter-rouge">System.UInt16</code></li>
+  <li><code class="language-plaintext highlighter-rouge">System.Int32</code></li>
+  <li><code class="language-plaintext highlighter-rouge">System.UInt32</code></li>
+  <li><code class="language-plaintext highlighter-rouge">System.Int64</code></li>
+  <li><code class="language-plaintext highlighter-rouge">System.UInt64</code></li>
+  <li><code class="language-plaintext highlighter-rouge">System.IntPtr</code></li>
+  <li><code class="language-plaintext highlighter-rouge">System.UIntPtr</code></li>
+  <li><code class="language-plaintext highlighter-rouge">System.Char</code></li>
+  <li><code class="language-plaintext highlighter-rouge">System.Double</code></li>
+  <li><code class="language-plaintext highlighter-rouge">System.Single</code></li>
+</ul>
+
+<p>Note that <code class="language-plaintext highlighter-rouge">System.String</code> is not listed. I don’t know the exact reasoning for this, but my best guess is that because <code class="language-plaintext highlighter-rouge">System.String</code> is a reference type, it doesn’t get to join the list of value types. The <a href="https://msdn.microsoft.com/en-us/library/system.type.isprimitive.aspx"><code class="language-plaintext highlighter-rouge">Type.IsPrimitive</code></a> property can be used to check if a given type is a primitive type in the CLR.</p>
+
+<h3 id="cs-specification">C#’s specification</h3>
+
+<p>The <abbr title="It comes packed with every Visual Studio installation. Mine is over at C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\VC#\Specifications\1033">C# specification (version 4)</abbr> doesn’t talk about primitive types at all. The specification defines so-called simple types; they are defined as “value types that have a keyword alias in C#”. This immediately excludes <code class="language-plaintext highlighter-rouge">System.String</code> - it is a reference type after all.</p>
+
+<p>However, <code class="language-plaintext highlighter-rouge">System.String</code> still behaves as if it was one of the simple types:</p>
+
+<ul>
+  <li>It has a keyword alias (<code class="language-plaintext highlighter-rouge">string</code>)</li>
+  <li>It has three (three!) constant literals available - regular, verbatim and interpolated</li>
+</ul>
+
+<p>All in all, you should be fine treating <code class="language-plaintext highlighter-rouge">System.String</code> as a ‘primitive’ type in your code, but it’s useful to know what’s actually going on under the hood.</p>
+
+<h3 id="quick-sidenote-the-keyword-aliases">Quick sidenote: the keyword aliases</h3>
+
+<p>Using the keyword aliases is as if the compiler automatically prefixes all your classes with</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>using short = System.Int16;
+using int = System.Int32;
+using long = System.Int64;
+using float = System.Single;
+// etc.
+</code></pre></div></div>
+
+<p>However, there is one situation where it matters whether you use the keyword aliases or the types: enum underlying type definition. When defining the underlying type for an <code class="language-plaintext highlighter-rouge">enum</code>, you <em>have</em> to use the keyword aliases.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>internal enum MyEnum : long // valid
+{
+    Value1, ...
+}
+
+internal enum MyEnum : System.Int64 // invalid
+{
+    Value1, ...
+}
+</code></pre></div></div>
+
+<h2 id="value-types-versus-reference-types">Value types versus reference types</h2>
+
+<p>Most (if not all) C# programmers find themselves pondering over the distinction between these two types of, well, types. I’m going to assume you know the basic differences (how they behave when passed around etc.), but I’ll cover some topics that aren’t immediately obvious.</p>
+
+<h3 id="where-they-reside-in-memory">Where they reside in memory</h3>
+
+<p>It’s common to think of value types being in the stack, and reference types being in the heap - always. This is more-or-less true, but not guaranteed. You can easily instantiate a value type and it’ll end up in the stack:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>int constructedInt = new System.Int32(5);
+</code></pre></div></div>
+
+<p>You can also box a value type to <code class="language-plaintext highlighter-rouge">object</code>: a reference type.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>object intObject = 5;
+</code></pre></div></div>
+
+<p>It’s ambiguous where these types exactly reside in memory, but here’s the deal: you don’t have to care. This is C# after all, the compiler and runtime abstract the memory away from you, only throwing <code class="language-plaintext highlighter-rouge">OutOfMemoryException</code>s when you allocate too much of it.</p>
+
+<h3 id="all-value-types-are-immutable-by-default-whereas-reference-types-are-mutable">All value types are immutable by default whereas reference types are mutable</h3>
+
+<p>This is false. Well, the ‘by default’ part is. To make a value type immutable, you have to make it such yourself. Most (if not all) value types defined in the CLR or C# specification are immutable. A classic counter-example is the <code class="language-plaintext highlighter-rouge">Point</code>-struct in both Windows Forms and Windows Presentation Foundation.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>internal struct MutableStruct
+{
+    public int Value;
+    
+    public MutableStruct(int value)
+    {
+        Value = value;
+    }
+}
+...
+var mutable = new MutableStruct(5);
+Console.WriteLine(mutable.Value);
+mutable.Value = 10;
+Console.WriteLine(mutable.Value);
+</code></pre></div></div>
+
+<p>This code compiles just fine and behaves as you’d expect it to - it first prints <code class="language-plaintext highlighter-rouge">5</code>, then <code class="language-plaintext highlighter-rouge">10</code>. However, please don’t do this. If you have to modify a struct, provide operators or methods (or both) to derive a completely new instance derived from the original. (Don’t forget to mark your fields as <code class="language-plaintext highlighter-rouge">readonly</code> to make them properly immutable.)</p>
+
+<p>Reference types are just as mutable as value types, but they too can be made immutable. The difference is that it’s commonly accepted to have mutable reference types.</p>
+
+<h2 id="readonly-automatic-properties">Readonly automatic properties</h2>
+
+<p>When defining a property that generates its own backing field automatically, you can omit the setter to make the property read-only. Properties are often associated to be a native getter-setter pattern (because that’s what they compile down to), it’s possible to minify the property definition through some syntactic sugar. Rather than having to define the (hopefully) private backing field yourself, you can omit the bodies for the getter and setter to have the compiler generate the backing field for you.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>public string MyProperty { get; set; }
+</code></pre></div></div>
+
+<p>As such, it’s possible to omit the setter completely to make the property read-only. However, because of the previously mentioned association with the getter-setter pattern, you’d think the setter is entirely gone and you can’t set its value at all. This is obviously counter-intuitive: you do want to set the value to something. It would make sense to forget the compiler trick - define the backing field and have your getter return that.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>private string backingField;
+
+public string MyProperty
+{
+    get
+    {
+        return backingField;
+    }
+}
+</code></pre></div></div>
+
+<p>(There are more syntactic sugars available here related to expression bodies, but I’ve decided to omit them to have the example be clear.)</p>
+
+<p>Here, it’s possible to define <code class="language-plaintext highlighter-rouge">backingField</code> as <code class="language-plaintext highlighter-rouge">readonly</code> and set its value in a constructor, just as you would with any other <code class="language-plaintext highlighter-rouge">readonly</code> field.</p>
+
+<p>The thing is; when you omit the setter in an automatic property, you can still set its value in the constructor, just as if it was a <code class="language-plaintext highlighter-rouge">readonly</code> field.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>public string MyProperty { get; }
+
+public MyClass(string stringValue)
+{
+    MyProperty = stringValue;
+}
+</code></pre></div></div>
+
+<p>This is not immediately obvious, because there’s no <code class="language-plaintext highlighter-rouge">readonly</code> keyword anywhere indicating the read-only-ness of the member, which is why I wanted to mention it.</p>
+
+<h2 id="default-access-modifiers">Default access modifiers</h2>
+
+<p>When omitting the access modifier from a class, struct or a member, the compiler will assign a default one. It’s common to think that members will end up being <code class="language-plaintext highlighter-rouge">private</code>, and classes and structs are <code class="language-plaintext highlighter-rouge">public</code>. This is not true, however. The compiler will assign the <em>most restrictive modifier possible</em> if the modifier is omitted. Here’s a table of the default access modifiers:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Thing</th>
+      <th>Default access modifier</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Top-level class</td>
+      <td>internal</td>
+    </tr>
+    <tr>
+      <td>Nested class</td>
+      <td>private</td>
+    </tr>
+    <tr>
+      <td>Interface</td>
+      <td>internal</td>
+    </tr>
+    <tr>
+      <td>Class members</td>
+      <td>private</td>
+    </tr>
+    <tr>
+      <td>Explicitly implemented interface member</td>
+      <td>public</td>
+    </tr>
+    <tr>
+      <td>Interface and enum members</td>
+      <td>public</td>
+    </tr>
+    <tr>
+      <td>Property getter and setter</td>
+      <td>public</td>
+    </tr>
+    <tr>
+      <td>Constructor</td>
+      <td>private</td>
+    </tr>
+    <tr>
+      <td>Delegate</td>
+      <td>internal</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Important things to note:</p>
+
+<ul>
+  <li>If you omit a constructor, the compiler will generate a default <code class="language-plaintext highlighter-rouge">public</code> constructor with no parameters.</li>
+  <li>It’s not possible to define an access modifier for a namespace. Namespaces are <code class="language-plaintext highlighter-rouge">public</code> by default.</li>
+  <li>The getter and setter of a property are the one exception to the rule stated above. It’s possible to define a more restrictive modifier to either of them, such as <code class="language-plaintext highlighter-rouge">protected</code> for the getter and <code class="language-plaintext highlighter-rouge">private</code> for the setter.</li>
+</ul>
+
+<h2 id="conclusion">Conclusion</h2>
+
+<p>These are by far not all of the ‘gotchas’ you’ll run into, but these are the ones I ran into lately and wanted to bring out.</p>
+
+<!--kg-card-end: markdown-->
+
+  </div><a class="u-url" href="/2017/08/09/c-gotchas.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Spans&#39; Blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Spans&#39; Blog</li><li><a class="u-email" href="mailto:me@spans.fi">me@spans.fi</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/spanfile"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">spanfile</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p></p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

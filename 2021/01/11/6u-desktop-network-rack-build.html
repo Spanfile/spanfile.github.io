@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>6U desktop network rack build | Spans’ Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="6U desktop network rack build" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="My “core” LAN network consists of two rackmounted switches and a router. After moving into a new apartment, I didn’t want to keep them in a zero-ventilation closet on the other side of the apartment, so I thought I’d put my massive desk to good use and build a small rack to stick the network gear in, and keep it on my desk for ease of use and good ventilation." />
+<meta property="og:description" content="My “core” LAN network consists of two rackmounted switches and a router. After moving into a new apartment, I didn’t want to keep them in a zero-ventilation closet on the other side of the apartment, so I thought I’d put my massive desk to good use and build a small rack to stick the network gear in, and keep it on my desk for ease of use and good ventilation." />
+<link rel="canonical" href="https://blog.spans.fi/2021/01/11/6u-desktop-network-rack-build.html" />
+<meta property="og:url" content="https://blog.spans.fi/2021/01/11/6u-desktop-network-rack-build.html" />
+<meta property="og:site_name" content="Spans’ Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-01-11T18:31:19+00:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="6U desktop network rack build" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2021-01-11T18:31:19+00:00","datePublished":"2021-01-11T18:31:19+00:00","description":"My “core” LAN network consists of two rackmounted switches and a router. After moving into a new apartment, I didn’t want to keep them in a zero-ventilation closet on the other side of the apartment, so I thought I’d put my massive desk to good use and build a small rack to stick the network gear in, and keep it on my desk for ease of use and good ventilation.","headline":"6U desktop network rack build","mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.spans.fi/2021/01/11/6u-desktop-network-rack-build.html"},"url":"https://blog.spans.fi/2021/01/11/6u-desktop-network-rack-build.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="https://blog.spans.fi/feed.xml" title="Spans' Blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Spans&#39; Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">6U desktop network rack build</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2021-01-11T18:31:19+00:00" itemprop="datePublished">Jan 11, 2021
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p>My “core” LAN network consists of two rackmounted switches and a router. After moving into a new apartment, I didn’t want to keep them in a zero-ventilation closet on the other side of the apartment, so I thought I’d put my massive desk to good use and build a small rack to stick the network gear in, and keep it on my desk for ease of use and good ventilation.</p>
+
+<p><img src="/assets/2021/01/desktop-rack.jpg" alt="The finished rack" /></p>
+
+<h2 id="the-components">The components</h2>
+
+<p>The pre-existing network components are:</p>
+
+<ul>
+  <li><a href="https://mikrotik.com/product/crs112_8p_4s_in">Mikrotik CRS112-8P-4S-IN</a>, primarily used for its 802.3af/at Power-over-Ethernet output capabilities. It is used to power a wireless access point, the router and three Raspberry Pi’s.</li>
+  <li><a href="https://mikrotik.com/product/hex_s">Mikrotik hEX S</a>, the router. It’s powered purely with 802.3af/at PoE from the switch to avoid using a socket unnecessarily.</li>
+  <li><a href="https://www.tp-link.com/us/business-networking/smart-switch/t1700g-28tq/">TP-Link T1700G-28TQ</a>, just for the ports. Every port in the CRS112 are used up, so this thing lets me have free ports for when I need ‘em. It also has four SFP+-cages - I’m not currently using them, but I’m considering connecting my desktop and lab to the switch with fiber for a 10 gigabit connection to my network storage.</li>
+</ul>
+
+<p>The new stuff to complete the build are:</p>
+
+<ul>
+  <li>A <a href="https://www.amazon.de/gp/product/B004C0V29W">DIGITUS keystone patch panel</a>. Whatever cables I pull to the rack will go into this patch panel, and from there into either switch with some quarter-meter patch cables. <em>Edit 31/05/21</em>: the keystones I got are crap.</li>
+  <li>A <a href="https://www.thomann.de/gb/varytec_power_distribution_panel_8x_sc.htm">Varytec power distributor</a> to plug things into. I chose this one since it has plenty of ports - eight - and a power switch on the front. Many others I found had the switch on the other side to the ports, which wouldn’t fit me.</li>
+  <li>A 1U <a href="https://www.thomann.de/gb/thon_rackwanne_1he.htm">Thon rack shelf</a> to mount the power supply for the CRS112, and possibly some other things in the future.</li>
+  <li>And finally, a <a href="https://www.thomann.de/gb/millenium_steel_box_6.htm">Millenium Steel Box 6</a> 6U rack to house everything in. It’s 300mm deep, which is enough to fit everything I want and shallow enough to fit neatly on my desk. It also has square holes for cage nuts, which is ideal.</li>
+</ul>
+
+<h2 id="the-build">The build</h2>
+
+<p>I had some pre-existing cage nuts and screws to mount everything in the rack with. I ended up laying out the devices in order from top to bottom;</p>
+
+<ul>
+  <li>shelf</li>
+  <li>power distributor</li>
+  <li>T1700G</li>
+  <li>patch panel</li>
+  <li>CRS112</li>
+  <li>empty</li>
+</ul>
+
+<p>I might experiment with moving the power distributor to the second-to-bottom slot, routing the power cables underneath it and moving everything up one slot, so whatever ‘auxiliary’ devices I plug into the power distributor wouldn’t droop in front of the switches.</p>
+
+<p>The router and Raspberry Pi’s are plugged directly into the back side of the patch panel. I use some Chinese PoE-splitters to power the Pis. Two of them are 3B+’s, one is a 3B. The PoE-splitters allow for only 100Mbit links instead of gigabit, but the Pis wouldn’t use gigabit anyways. The 3B uses a 100Mbit link anyways, and while the plus-models negotiate a gigabit link, they still run Ethernet over the USB2 bus so it’s limited to around 300Mbit in practice. Dropping that down to 100Mbit doesn’t really matter for my use.</p>
+
+<p>The router, however, does do both gigabit links and active PoE, just like the 802.3af/at standard allows. It’s plugged into two ports on the switch, the other one being a VLAN trunk port and the other a VLAN access port. Via the trunk, it gets access to WAN and to a transit network into a separate lab network (outside the scope of this post, sorry). The access port is just for the local LAN. It behaves kind-of like a router-on-a-stick setup.</p>
+
+<p>The PoE devices are just laying around behind the switches, which isn’t very ideal nor clean. I’m planning of getting some cases for the Pis I could mount to the shelf on the top to protect them from accidental short circuits, and to hold them in place. Right now they’re just floating on top of the cables to isolate them from each other and the metal rack case. Fun fact; you can kill a Pi 3 by shorting its 5V rail to its 3.3V rail while its powered. This is easily done accidentally, since the GPIO header has both a 5V pin and 3.3V pin right next to each other on the top side. I originally had four 3B+’s, but two of them have died, likely due to this issue. I don’t want the last two to die by shorting them to the metal rack case or something such.</p>
+
+<p>The link between the CRS112 and the T1700G-28TQ is via the patch panel to avoid “jumping” a cable over the patch panel, which makes for cleaner cabling.</p>
+
+<p>The CRS112 comes with optional rackmount brackets I had to dig out from underneath a pile of boxes, but I found ‘em and screwed ‘em on. The device has two power DC power ports, one for 18-28V and one for 48-57V. If you plug power into the higher voltage one, it’ll allow the device to output 802.3at (sometimes called “PoE+”). The Raspberry Pi PoE-splitters require 802.3at, so I’m using a 48V 3A power supply. I’ve zip-tied it to the shelf on the topmost position. I measured its output and it’s actually half a volt shy of 48V, but the PSE in the CRS112 doesn’t seem to mind. It’s outputting a nice 49V on each PoE port.</p>
+
+<p>The keystones fit into the patch panel just fine, but they’re a bit fragile and some fit the cable on either end very tightly. I’ve already had a mounting tab break off one keystone, so it’s sort-of loosely held in place by the cables on both ends. They likely won’t tolerate being attached and detached often, but then again they’re not supposed to be moved around that much.</p>
+
+<p>I grabbed some small rubber feet from the hardware store to stick to the bottom of the rack to stop it sliding around so easily.</p>
+
+<h2 id="the-future">The future</h2>
+
+<p>Temperatures in the rack seem fine, albeit a bit high. The 48V (well, 47.5V) power supply for the CRS112 gets quite warm, but not so hot I couldn’t hold my hand on it. Both the CRS112 and the T1700G are passively cooled, so I’m assuming they’re fine not having any active cooling. To the touch they’re a bit too warm for comfort in my opinion, though. I have a couple of 40mm Noctua fans laying around, so I might try and mount a fan into one or both devices, assuming I can get 12V power from somewhere. I’ve been inside the CRS112 once already, and it does have three solder pads labeled “FAN”. Unfortunately they don’t seem to be active, so I’ll have to figure out some other way to get 12V out. I don’t know what’s the deal inside the T1700G, but I’ll figure something out if need be.</p>
+
+<p>The patch panel still has another 12 ports free, and the T1700G has almost all its ports free, so there’s plenty space for future port needs. I’m thinking of getting a small 1U server to mount in the last free space in the rack that could host some local storage. It’d have to be pretty shallow for a server though, since the rack has only 300mm of clearance.</p>
+
+
+  </div><a class="u-url" href="/2021/01/11/6u-desktop-network-rack-build.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Spans&#39; Blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Spans&#39; Blog</li><li><a class="u-email" href="mailto:me@spans.fi">me@spans.fi</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/spanfile"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">spanfile</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p></p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

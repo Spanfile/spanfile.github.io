@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>I thought PiHole was kinda bad so I made my own | Spans’ Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="I thought PiHole was kinda bad so I made my own" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="TL;DR: it’s a Rust binary called Singularity (because of the gravity lists, domain blackholing? it sounds cool don’t judge). You give it sources for malicious domains and it outputs a Lua script that the PowerDNS Recursor uses to automatically respond with a null route (0.0.0.0) to all the malicious domains. No web UIs (SSH is enough), no dnsmasq, no system-overtaking installers, just a program that outputs a single file." />
+<meta property="og:description" content="TL;DR: it’s a Rust binary called Singularity (because of the gravity lists, domain blackholing? it sounds cool don’t judge). You give it sources for malicious domains and it outputs a Lua script that the PowerDNS Recursor uses to automatically respond with a null route (0.0.0.0) to all the malicious domains. No web UIs (SSH is enough), no dnsmasq, no system-overtaking installers, just a program that outputs a single file." />
+<link rel="canonical" href="https://blog.spans.fi/2020/11/15/i-thought-pihole-was-kinda-bad-so-i-made-my-own.html" />
+<meta property="og:url" content="https://blog.spans.fi/2020/11/15/i-thought-pihole-was-kinda-bad-so-i-made-my-own.html" />
+<meta property="og:site_name" content="Spans’ Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-11-15T10:52:39+00:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="I thought PiHole was kinda bad so I made my own" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2020-11-15T10:52:39+00:00","datePublished":"2020-11-15T10:52:39+00:00","description":"TL;DR: it’s a Rust binary called Singularity (because of the gravity lists, domain blackholing? it sounds cool don’t judge). You give it sources for malicious domains and it outputs a Lua script that the PowerDNS Recursor uses to automatically respond with a null route (0.0.0.0) to all the malicious domains. No web UIs (SSH is enough), no dnsmasq, no system-overtaking installers, just a program that outputs a single file.","headline":"I thought PiHole was kinda bad so I made my own","mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.spans.fi/2020/11/15/i-thought-pihole-was-kinda-bad-so-i-made-my-own.html"},"url":"https://blog.spans.fi/2020/11/15/i-thought-pihole-was-kinda-bad-so-i-made-my-own.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="https://blog.spans.fi/feed.xml" title="Spans' Blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Spans&#39; Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">I thought PiHole was kinda bad so I made my own</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2020-11-15T10:52:39+00:00" itemprop="datePublished">Nov 15, 2020
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p>TL;DR: it’s a Rust binary called <a href="https://crates.io/crates/singularity">Singularity</a> (because of the gravity lists, domain blackholing? it sounds cool don’t judge). You give it sources for malicious domains and it outputs a Lua script that the PowerDNS Recursor uses to automatically respond with a null route (<code class="language-plaintext highlighter-rouge">0.0.0.0</code>) to all the malicious domains. No web UIs (SSH is enough), no <code class="language-plaintext highlighter-rouge">dnsmasq</code>, no system-overtaking installers, just a program that outputs a single file.</p>
+
+<h1 id="whats-this-about-pihole">What’s this about PiHole?</h1>
+
+<p>I wanted network-wide ad blocking (and other known malicious domain blocking), which by now is arguably synonymous with <a href="https://pi-hole.net/">PiHole</a>. It’s fine for everyday users, you just buy a Raspberry Pi, run one command and you’re done. But I’m not an everyday user, so the amount of things it does and the amount of assumptions it makes aren’t a great fit for my use.</p>
+
+<ul>
+  <li>The installer “overtakes” the system it’s being installed into and heavily assumes it’s a Pi. Sure, yeah, the name has “Pi” in it but they’re <a href="https://docs.pi-hole.net/main/prerequisites/#supported-operating-systems">officially supporting a bunch of others</a> as well.</li>
+  <li>It wants to use a static address with <code class="language-plaintext highlighter-rouge">dhcpcd</code>. Sure, a Pi comes preinstalled with it. <em>But</em>, <a href="https://docs.pi-hole.net/main/prerequisites/#ip-addressing">they automatically install <code class="language-plaintext highlighter-rouge">dhcpcd</code> just to make sure it’s there</a>, which <em>will</em> cause conflicts with literally any other network management system. Again, a terrible thing for it do on anything but a Pi.</li>
+  <li>One is none and two is one. DNS is built to be redundant, which in the case of local resolvers means running two of ‘em (it’s why all network configuration allow specifying two or more DNS resolvers). PiHole doesn’t have anything to support running two (or more) of them in parallel, so two of them side-by-side are entirely separated from one another. It’d be quite cool if the fancypants web interface could aggregate statistics from both of ‘em.</li>
+  <li>They make modifying the <code class="language-plaintext highlighter-rouge">dnsmasq</code> conf- wait, no, they call it “FTL”, which… eugh.</li>
+  <li>They use their own fork of <code class="language-plaintext highlighter-rouge">dnsmasq</code> they call “FTL DNS” that lets them do blackholing more efficiently. They also market it as being <a href="https://docs.pi-hole.net/ftldns/">blazing fast</a>, and damn I sure hope so. It’d be pretty terrible if they’d managed to make their “faster than light” fork of <code class="language-plaintext highlighter-rouge">dnsmasq</code> slower than <code class="language-plaintext highlighter-rouge">dnsmasq</code> itself, which is already pretty fucking fast to begin with.</li>
+  <li>They make modifying the actual <code class="language-plaintext highlighter-rouge">dnsmasq</code> configuration awkward, which is to say they don’t really want you doing it at all.</li>
+</ul>
+
+<p>So I didn’t like PiHole for the short time I used it, so I thought I’d make my own.</p>
+
+<h1 id="enter-pdns">Enter PDNS</h1>
+
+<p><a href="https://www.powerdns.com/recursor.html">PowerDNS Recursor</a> is the high-end, easy-to-use, powerful-to-dig-into (pun intended) DNS recursor. It runs everywhere, and ‘everywhere’ includes a Pi. It offers a <a href="https://doc.powerdns.com/recursor/lua-scripting/index.html">Lua scripting interface</a> that lets you program custom logic for responding to queries, such as responding with a <code class="language-plaintext highlighter-rouge">0.0.0.0</code> to queries for names specified in a list of malicious domains. Which is exactly what I made it do.</p>
+
+<h2 id="the-lua-interface">The Lua interface</h2>
+
+<p>The Lua interface Recursor exposes has a <a href="https://doc.powerdns.com/recursor/lua-scripting/hooks.html#preresolve"><code class="language-plaintext highlighter-rouge">preresolve()</code> function</a> that “is called before any DNS resolution is attempted, and if this function indicates it, it can supply a direct answer to the DNS query, overriding the internet”. The interface also has so-called <a href="https://doc.powerdns.com/recursor/lua-scripting/dnsname.html#dns-suffix-match-groups">“DNS suffix match groups”</a> that let you specify a collection of DNS names, and later match a given FQDN if it’s equal to, or is a subdomain of any names in the collection (so if the collection has <code class="language-plaintext highlighter-rouge">spans.me</code>, in it, the name <code class="language-plaintext highlighter-rouge">blog.spans.me</code> would match). This kind of suffix match group used in the <code class="language-plaintext highlighter-rouge">preresolve()</code> function is how the blocking is done.</p>
+
+<h2 id="how-the-blocking-is-done">How the blocking is done</h2>
+
+<p>We begin by specifying the malicious domain suffix match group and adding the unwanted domains. In Singularity’s final output, this collection is <em>large</em> (but that’s fine)<em>.</em></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>b = newDS()
+b:add{"malicious.domain", "facebook.com"}
+</code></pre></div></div>
+
+<p>Then, create the <code class="language-plaintext highlighter-rouge">preresolve()</code> function that returns a null route to all domains matched in the suffix group.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>function preresolve(q)
+    -- if the queried name is in the suffix rgoup
+    if b:check(q.qname) then
+        -- since we're responding with an IPv4 address, respond only to A-queries
+        if q.qtype==pdns.A then
+            -- answer with an A-record pointing to the null route
+            q:addAnswer(pdns.A, "0.0.0.0")
+            -- tell Recursor we've handled this query and exit
+            return true
+        end
+    end
+    -- our matching didn't catch a malicious domain, tell Recursor we haven't touched this query and let it do it's thing
+    return false
+end
+</code></pre></div></div>
+
+<p>Then… that’s it. This script can then be saved somewhere and configured for Recursor’s use with the <a href="https://doc.powerdns.com/recursor/settings.html?highlight=lua%20dns%20script#lua-dns-script"><code class="language-plaintext highlighter-rouge">lua-dns-script</code> config setting</a>. Now it’s just a matter of maintaining the suffix match group, which is where Singularity steps in.</p>
+
+<h1 id="blackholing-domains-with-singularity">Blackholing domains with Singularity</h1>
+
+<p>In its essence, <a href="https://crates.io/crates/singularity">Singularity</a> reads known malicious domains from an URL, that can be either an HTTP/HTTPS URL, or a <code class="language-plaintext highlighter-rouge">file</code> URL for local files. It can read either <a href="https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"><code class="language-plaintext highlighter-rouge">hosts</code>-formatted domains</a> (same format as in <code class="language-plaintext highlighter-rouge">/etc/hosts</code>, so <code class="language-plaintext highlighter-rouge">0.0.0.0 malicious.domain</code>) or just <a href="https://mirror1.malwaredomains.com/files/justdomains">plain domains, one-per-line</a>. It collects all the domains from the lists it’s given, and finally outputs a complete Lua script as shown above. It can also output an <code class="language-plaintext highlighter-rouge">/etc/hosts</code>-style file, so it can be used anywhere where <code class="language-plaintext highlighter-rouge">/etc/hosts</code> can be used… which is everywhere really.</p>
+
+<p>Its configuration allows specifying any combination of adlist inputs, and any combination of outputs. There’s a couple of options per-input and per-output, which lets it be somewhat flexible in terms of what the input and outputs exactly contain.</p>
+
+<h2 id="how-i-use-it">How I use it</h2>
+
+<p>In my Pi, I have PDNS Recursor running with a simple configuration:</p>
+
+<figure class="kg-card kg-code-card"><pre><code>config-dir=/etc/powerdns
+include-dir=/etc/powerdns/recursor.d
+
+allow-from=127.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 169.254.0.0/16, 192.168.0.0/16, 172.16.0.0/12, ::1/128, fc00::/7, fe80::/10
+local-address=0.0.0.0
+local-port=553
+
+forward-zones-file=/etc/powerdns/forward-zones
+export-etc-hosts=/etc/powerdns/lan-hosts
+export-etc-hosts-search-suffix=lan
+lua-dns-script=/etc/powerdns/blackhole.lua
+
+lua-config-file=/etc/powerdns/recursor.lua
+hint-file=/usr/share/dns/root.hints
+quiet=yes
+security-poll-suffix=
+setgid=pdns
+setuid=pdns</code></pre>
+<figcaption>/etc/powerdns/recursor.conf</figcaption></figure>
+
+<p>The <code class="language-plaintext highlighter-rouge">lua-dns-script</code> is the important bit. Singularity is configured to output its Lua script to that specified location. Its configuration looks as such:</p>
+
+<figure class="kg-card kg-code-card"><pre><code>[[adlist]]
+source = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+
+[[adlist]]
+format = "domains"
+source = "https://mirror1.malwaredomains.com/files/justdomains"
+
+[[output]]
+destination = "/etc/powerdns/blackhole.lua"
+type = "pdns-lua"</code></pre>
+<figcaption>$HOME/.config/singularity/singularity.toml</figcaption></figure>
+
+<p>Super simple; two adlists are specified, one in the <code class="language-plaintext highlighter-rouge">hosts</code>-format and the other in <code class="language-plaintext highlighter-rouge">domains</code>-format. One output is specified for the Lua script Recursor uses. Running Singularity with <code class="language-plaintext highlighter-rouge">sudo</code> (writing to the script’s location requires root here):</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ sudo -E ./singularity
+INFO Reading adlist from https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts...
+INFO Reading adlist from https://mirror1.malwaredomains.com/files/justdomains...
+WARN While reading https://mirror1.malwaredomains.com/files/justdomains, line #26407 ("") was parsed into an empty entry, so it was ignored
+INFO Read 84 671 domains from 2 source(s)
+</code></pre></div></div>
+
+<p>While running, it shows pretty progress bars for… progress. That one warning there is the result of a funny bug it had; if a line in the <code class="language-plaintext highlighter-rouge">domains</code>-format was empty, it’d be parsed as the catch-all <code class="language-plaintext highlighter-rouge">.</code> entry, which would match every domain, which meant blocking everything. Now such entries are ignored, and blocking works fine.</p>
+
+<p>Now that Singularity has done its thing, Recursor can either be restarted or told to reload the Lua script with <code class="language-plaintext highlighter-rouge">sudo rec_control reload-lua-script</code>, and that’s that. Recursor can be queried for names normally, except it’ll return a <code class="language-plaintext highlighter-rouge">0.0.0.0</code> for everything malicious.</p>
+
+<p>Getting Singularity automatically run every once in a while is easily done with standard tools like <code class="language-plaintext highlighter-rouge">cron</code> or <code class="language-plaintext highlighter-rouge">systemd</code> timers.</p>
+
+<h3 id="but-wait-why-does-the-recursor-config-have-local-port553">“But wait, why does the Recursor config have local-port=553?”</h3>
+
+<p>Good question! Remember when I said “one is none and two is one”? I have two of these Pis running Recursor + Singularity, and on both there’s <code class="language-plaintext highlighter-rouge">dnsdist</code>, PowerDNS’s DNS load balancer software. <code class="language-plaintext highlighter-rouge">dnsdist</code> is the one listening on 53 on both Pis, and will forward queries to both the local Recursor and the opposing one from both.</p>
+
+<figure class="kg-card kg-code-card"><pre><code>newServer("192.168.0.3:553")
+newServer("127.0.0.1:553")
+setLocal("0.0.0.0")</code></pre>
+<figcaption>/etc/dnsdist/dnsdist.conf</figcaption></figure>
+
+<p>Then for all my network clients, I have both Pis set as nameservers, so there’s redundancy and load balancing going on.</p>
+
+<h2 id="but-is-it-blazing-fast-or-faster-than-light">But is it “blazing fast” or “faster than light”?</h2>
+
+<p>I dunno, I’m not well-versed with marketing jargon ¯_(ツ)_/¯</p>
+
+<p>It works fine for my use, and I haven’t noticed it being significantly slower than just normal recursion. Recursor seems to support pre-compiled Lua scripts that might speed up the resolving override, but I haven’t tried that out yet.</p>
+
+<h2 id="what-about-the-fancy-web-ui-or-metrics">What about the fancy web UI? Or metrics?</h2>
+
+<p>I don’t care for web UIs for my DNS resolvers, I have SSH. Recursor’s Lua scripts <a href="https://doc.powerdns.com/recursor/lua-scripting/statistics.html#generating-metrics">support outputting metrics</a> which I’m using to output a metric called “blocked-queries” that ends up among all the other metrics Recursor outputs. It is incremented for each blocked query.</p>
+
+<p>Other than that, since it’s just Recursor and dnsdist running, they can be monitored with whatever supports monitoring them. Go wild.</p>
+
+
+  </div><a class="u-url" href="/2020/11/15/i-thought-pihole-was-kinda-bad-so-i-made-my-own.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Spans&#39; Blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Spans&#39; Blog</li><li><a class="u-email" href="mailto:me@spans.fi">me@spans.fi</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/spanfile"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">spanfile</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p></p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

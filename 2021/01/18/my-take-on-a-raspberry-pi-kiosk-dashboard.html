@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>My take on a Raspberry Pi kiosk dashboard | Spans’ Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="My take on a Raspberry Pi kiosk dashboard" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Like everyone and their mother-in-law, I have a local Grafana instance with a bunch of dashboards filled with graphs and bar gauges about things in my network. I have a desktop network rack with space on the top for a spare 24” monitor I have, so I thought I’d make a “24/7” Grafana kiosk display on it with a Raspberry Pi." />
+<meta property="og:description" content="Like everyone and their mother-in-law, I have a local Grafana instance with a bunch of dashboards filled with graphs and bar gauges about things in my network. I have a desktop network rack with space on the top for a spare 24” monitor I have, so I thought I’d make a “24/7” Grafana kiosk display on it with a Raspberry Pi." />
+<link rel="canonical" href="https://blog.spans.fi/2021/01/18/my-take-on-a-raspberry-pi-kiosk-dashboard.html" />
+<meta property="og:url" content="https://blog.spans.fi/2021/01/18/my-take-on-a-raspberry-pi-kiosk-dashboard.html" />
+<meta property="og:site_name" content="Spans’ Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-01-18T18:53:26+00:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="My take on a Raspberry Pi kiosk dashboard" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2021-01-18T18:53:26+00:00","datePublished":"2021-01-18T18:53:26+00:00","description":"Like everyone and their mother-in-law, I have a local Grafana instance with a bunch of dashboards filled with graphs and bar gauges about things in my network. I have a desktop network rack with space on the top for a spare 24” monitor I have, so I thought I’d make a “24/7” Grafana kiosk display on it with a Raspberry Pi.","headline":"My take on a Raspberry Pi kiosk dashboard","mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.spans.fi/2021/01/18/my-take-on-a-raspberry-pi-kiosk-dashboard.html"},"url":"https://blog.spans.fi/2021/01/18/my-take-on-a-raspberry-pi-kiosk-dashboard.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="https://blog.spans.fi/feed.xml" title="Spans' Blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Spans&#39; Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">My take on a Raspberry Pi kiosk dashboard</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2021-01-18T18:53:26+00:00" itemprop="datePublished">Jan 18, 2021
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p>Like everyone and their mother-in-law, I have a local Grafana instance with a bunch of dashboards filled with graphs and bar gauges about things in my network. I have a <a href="/2021/01/11/6u-desktop-network-rack-build.html">desktop network rack</a> with space on the top for a spare 24” monitor I have, so I thought I’d make a “24/7” Grafana kiosk display on it with a Raspberry Pi.</p>
+
+<p>I’ll be using standard Xorg and Chromium, and X11VNC for remote control. They’ll all be controlled and ran with systemd user-units for the <code class="language-plaintext highlighter-rouge">pi</code> user. My reason for the separate services is that many other guides online for a similar kiosk run Xorg and Chromium directly from <code class="language-plaintext highlighter-rouge">.bashrc</code> or the like, which wouldn’t allow restarting Chromium itself very easily, which is essential especially during testing the setup. Using separate services for Xorg and Chromium lets me restart either at will without having to reboot the entire Pi.</p>
+
+<h2 id="the-hardware">The hardware</h2>
+
+<p>Super simple stuff. As hinted by the network rack build post, there’s a Raspberry Pi model 3B in the rack, powered via Power-over-Ethernet. This Pi has been a sort-of catch-all for miscellanous things I’ve done, so this time it gets to run the kiosk. The monitor I’m using is some Asus 24” 1080P-monitor with an HDMI input, which I’ve place on top of the network rack and connected to the Pi via HDMI.</p>
+
+<h2 id="the-software">The software</h2>
+
+<p>The interesting bit. I started off with a stock Raspberry Pi OS Lite and set up some basics with the <code class="language-plaintext highlighter-rouge">raspi-config</code> tool. Most importantly, I enabled SSH and console autologin. I left its VNC out, since it installs RealVNC which is a bit much for this need. I’ll be setting up X11VNC later on. I installed Xorg, Chromium and some accompanying software in order to get the dashboard displayed first and foremost.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># apt install chromium-browser openbox unclutter xserver-xorg xinit x11-xserver-utils x11vnc
+</code></pre></div></div>
+
+<h3 id="dashboard-pre-requisites">Dashboard pre-requisites</h3>
+
+<p>Sourcing from a bunch of places online, I scratched together a pre-script that sets up some things for Xorg and Chromium.</p>
+
+<p><code class="language-plaintext highlighter-rouge">~/dashboard-pre.sh</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>#!/bin/bash
+sleep 1
+xset -dpms
+xset s off
+xset s noblank
+
+sed -i 's/"exited_cleanly":false/"exited_cleanly":true/' /home/pi/.config/chromium/Default/Preferences
+sed -i 's/"exit_type":"Crashed"/"exit_type":"Normal"/' /home/pi/.config/chromium/Default/Preferences
+unclutter &amp;
+</code></pre></div></div>
+
+<p>In my testing I found that the upcoming systemd unit would run too soon after Xorg had started, so the <code class="language-plaintext highlighter-rouge">xset</code> commands would freeze. I’m unsure if I could fix the service itself, but a simple one second sleep did the trick here.</p>
+
+<p>Then, the services to run after the user logs in, which happens automatically since I previously set the console to autologin to the <code class="language-plaintext highlighter-rouge">pi</code> user.</p>
+
+<h3 id="xorg-services">Xorg services</h3>
+
+<p>Xorg requires a service and a socket definition.</p>
+
+<p><code class="language-plaintext highlighter-rouge">~/.config/systemd/user/xorg@.socket</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[Unit]
+Description=Socket for xorg at display %i
+
+[Socket]
+ListenStream=/tmp/.X11-unix/X%i
+
+[Install]
+WantedBy=default.target
+</code></pre></div></div>
+
+<p>This socket is responsible for maintaining a communication socket for any Xorg instances, as denoted by the systemd unit index <code class="language-plaintext highlighter-rouge">%i</code> which represents the display number. The <code class="language-plaintext highlighter-rouge">:0</code> display is <code class="language-plaintext highlighter-rouge">xorg@0.socket</code> and so on. Since this is a socket service, when any communication comes into the socket, systemd will automatically start the corresponding service.</p>
+
+<p><code class="language-plaintext highlighter-rouge">~/.config/systemd/user/xorg@.service</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[Unit]
+Description=Xorg server at display %i
+Requires=xorg@%i.socket
+After=xorg@%i.socket
+
+[Service]
+Type=simple
+SuccessExitStatus=0 1
+ExecStart=/usr/bin/startx -- :%i
+</code></pre></div></div>
+
+<p>The actual service for Xorg is simple (pun intended). It has display indexing just like the socket, and requires its corresponding socket to be running before it can run itself. It simply calls <code class="language-plaintext highlighter-rouge">startx</code> with the configured display number, which in turn runs Openbox, the window manager. This service does <em>not</em> have an <code class="language-plaintext highlighter-rouge">[Install]</code> section, since the socket is responsible for starting the service, instead of the service starting itself when the user logs in.</p>
+
+<h3 id="dashboard-service">Dashboard service</h3>
+
+<p>Just Xorg and Openbox by themselves won’t get anything on the screen, so next up is the service for the Chromium kiosk itself.</p>
+
+<p><code class="language-plaintext highlighter-rouge">~/.config/systemd/user/dashboard.service</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[Unit]
+Description=Grafana dashboard
+After=xorg@0.service
+Requires=xorg@0.service
+
+[Service]
+Environment=DISPLAY=:0.0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+Type=simple
+ExecStartPre=/home/pi/dashboard-pre.sh
+ExecStart=/usr/bin/chromium-browser --kiosk --incognito --window-position=0,0 --noerrdialogs --disable-infobars "http://grafana.lan:3000/playlists/play/1?kiosk"
+Restart=on-abort
+
+[Install]
+WantedBy=default.target
+</code></pre></div></div>
+
+<p>A bit more complex. Like Xorg depends on its socket, this service depends on Xorg running at display 0 (thus <code class="language-plaintext highlighter-rouge">xorg@0.service</code>). The service sets the environment variables required for applications running on Xorg, runs the <code class="language-plaintext highlighter-rouge">dashboard-pre.sh</code> script from before as a pre-run and actually runs Chromium with the appropriate parameters for running it as a kiosk. The final parameter specifies which site it’ll open, which in this case is the local Grafana instance and a playlist within it.</p>
+
+<p>The dashboard itself is now ready to run with systemctl.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ systemctl --user daemon-reload
+$ systemctl --user enable --now xorg@0.socket
+$ systemctl --user enable --now dashboard.service
+</code></pre></div></div>
+
+<p>As explained earlier, only the socket for the Xorg server at display 0 is enabled and started, and the dashboard is started as well. This runs Xorg and opens Chromium on the display connected to the Pi, which opens the Grafana playlist automatically.</p>
+
+<h3 id="x11vnc">X11VNC</h3>
+
+<p>X11VNC is set up in a similar manner with a user systemd service. To be just that one tiny bit more secure (and to stop X11VNC from nagging about it), I created a VNC password for myself with <code class="language-plaintext highlighter-rouge">x11vnc -storepasswd</code>. Then the service.</p>
+
+<p><code class="language-plaintext highlighter-rouge">~/.config/systemd/user/x11vnc.service</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[Unit]
+Description=X11VNC server
+After=xorg@0.service
+Requires=xorg@0.service
+
+[Service]
+Environment=DISPLAY=:0.0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+ExecStart=/usr/bin/x11vnc -usepw -display $DISPLAY -forever -ncache 10
+
+[Install]
+WantedBy=default.target
+</code></pre></div></div>
+
+<p>Just like the dashboard service, this service depends on the Xorg server service running on display 0. It also sets the required environment variables, and runs X11VNC on the configured display. Importantly it uses the <code class="language-plaintext highlighter-rouge">-forever</code> option, which keeps it running after a connected client disconnects. Normally it’d shut down, which isn’t what I want.</p>
+
+<p>Much like the other services, it too is set to run on user login.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ systemctl --user daemon-reload
+$ systemctl --user enable --now x11vnc.service
+</code></pre></div></div>
+
+<h2 id="final-words">Final words</h2>
+
+<p>If everything works correct, the Pi should be safe to reboot and it’ll automatically log in after booting, run Xorg and open Chromium to the Grafana dashboard playlist.</p>
+
+<p><img src="/assets/2021/01/Screenshot-from-2021-01-18-19-31-18.png" alt="The final dashboard, as seen via VNC" /></p>
+
+<p>If you’re interested, my two Pis run PowerDNS Recursor with a custom tool I developed called <a href="https://github.com/Spanfile/Singularity">Singularity</a>, which configures Recursor to reply with a null route to known malicious domains. I’ve <a href="/2020/11/15/i-thought-pihole-was-kinda-bad-so-i-made-my-own.html">written about it here</a>. The tool exports a <code class="language-plaintext highlighter-rouge">blocked-domains</code> stat among the other Recursor stats, which the DNS dashboard displays.</p>
+
+  </div><a class="u-url" href="/2021/01/18/my-take-on-a-raspberry-pi-kiosk-dashboard.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Spans&#39; Blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Spans&#39; Blog</li><li><a class="u-email" href="mailto:me@spans.fi">me@spans.fi</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/spanfile"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">spanfile</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p></p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Hyper-V Server 2016 + Intel I350 = weird problems | Spans’ Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="Hyper-V Server 2016 + Intel I350 = weird problems" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="I have a two-node Hyper-V failover cluster where both nodes have a four-port gigabit PCI-e NIC installed for additional reduntant network ports. The first node has an older Intel PRO/1000, whereas the other one has the PRO/1000’s new brother the I350. The PRO/1000 works fine, but the I350 has two issues I’ve had to (mostly) work around." />
+<meta property="og:description" content="I have a two-node Hyper-V failover cluster where both nodes have a four-port gigabit PCI-e NIC installed for additional reduntant network ports. The first node has an older Intel PRO/1000, whereas the other one has the PRO/1000’s new brother the I350. The PRO/1000 works fine, but the I350 has two issues I’ve had to (mostly) work around." />
+<link rel="canonical" href="https://blog.spans.fi/2019/06/01/hyper-v-server-2016-intel-i350.html" />
+<meta property="og:url" content="https://blog.spans.fi/2019/06/01/hyper-v-server-2016-intel-i350.html" />
+<meta property="og:site_name" content="Spans’ Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2019-06-01T12:05:00+00:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Hyper-V Server 2016 + Intel I350 = weird problems" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2019-06-01T12:05:00+00:00","datePublished":"2019-06-01T12:05:00+00:00","description":"I have a two-node Hyper-V failover cluster where both nodes have a four-port gigabit PCI-e NIC installed for additional reduntant network ports. The first node has an older Intel PRO/1000, whereas the other one has the PRO/1000’s new brother the I350. The PRO/1000 works fine, but the I350 has two issues I’ve had to (mostly) work around.","headline":"Hyper-V Server 2016 + Intel I350 = weird problems","mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.spans.fi/2019/06/01/hyper-v-server-2016-intel-i350.html"},"url":"https://blog.spans.fi/2019/06/01/hyper-v-server-2016-intel-i350.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="https://blog.spans.fi/feed.xml" title="Spans' Blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Spans&#39; Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Hyper-V Server 2016 + Intel I350 = weird problems</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2019-06-01T12:05:00+00:00" itemprop="datePublished">Jun 1, 2019
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p>I have a two-node Hyper-V failover cluster where both nodes have a four-port gigabit PCI-e NIC installed for additional reduntant network ports. The first node has an older Intel PRO/1000, whereas the other one has the PRO/1000’s new brother the I350. The PRO/1000 works fine, but the I350 has two issues I’ve had to (mostly) work around.</p>
+
+<h1 id="problem-1-vmq">Problem #1: VMQ</h1>
+
+<p>The I350 supports something called VMQ; Virtual Machine Queues. I won’t be going deep into it but it essentially allows the NIC to directly transfer incoming Ethernet frames into a virtual machine’s shared memory space with DMA. This is fine and all, except Windows trying to use it with the I350 breaks all VM network traffic in the card. There’s no other visible symptom of it except the virtual machine just not getting any frames in or out. VMQ can be disabled per-VM in Hyper-V, or it can be disabled entirely for the card’s individual interfaces.</p>
+
+<!--kg-card-begin: markdown-->
+
+<p>In Powershell, to disable a single VM network adapter’s VMQ:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Set-VMNetworkAdapter -Name &lt;VM name&gt; -VmqWeight 0
+</code></pre></div></div>
+
+<p>Or better, to disable a physical interface’s VMQ:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Set-NetAdapterAdvancedProperty &lt;Interface name&gt; -DisplayName "Virtual Machine Queues" -DisplayValue "Disabled"
+</code></pre></div></div>
+
+<!--kg-card-end: markdown-->
+<h1 id="problem-2-the-card-itself-crapping-out-after-a-reboot">Problem #2: the card itself crapping out after a reboot</h1>
+
+<p>I don’t actually know the reason behind this (maybe the card is really a counterfeit, who knows) but whenever the server soft-reboots, there’s a high chance the card fails to come back up. This shows with the interfaces not showing up in Windows at all, and any NIC teams created out of them being invalid. This in turn means any VMs using the NIC team don’t get any networking. The problem can be temporarily fixed by cold-booting the machine, but I haven’t found any permanent solution.</p>
+
+<p>It’s not that big of a deal, except that it causes some very weird issues in the failover cluster. What I’ve ran into most is that live-migrating a VM into the host fails with “Not enough storage available to complete the operation”, which you’ll notice has absolutely fuck-all to do with the problem at hand. This has led me down a path of checking every part of any storage the machines might or might not have, which all have had plenty of space free, which has made the problem even more difficult to diagnose. The machine even appears to work fine from the outside, since its management network is using the onboard interfaces, not the card’s. From what I’ve found, this error can arise from a lot of different things, which includes but isn’t limited to the <a href="https://www.virtualizationhowto.com/2017/03/windows-server-2016-hyper-v-cluster-not-enough-storage-space-available">target host not having enough memory available</a> or <a href="https://community.spiceworks.com/topic/161032-not-enough-storage-is-available-to-complete-this-operation-loaduserprofile">printers bloating the registry</a>.  Now I can add “missing network adapter” to the possible causes.</p>
+
+
+  </div><a class="u-url" href="/2019/06/01/hyper-v-server-2016-intel-i350.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Spans&#39; Blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Spans&#39; Blog</li><li><a class="u-email" href="mailto:me@spans.fi">me@spans.fi</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/spanfile"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">spanfile</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p></p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

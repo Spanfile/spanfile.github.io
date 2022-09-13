@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>A tale of networked storage, asymmetric routing and what not to do when a drive fails | Spans’ Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="A tale of networked storage, asymmetric routing and what not to do when a drive fails" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="My lab network has a centralised storage server, a Dell R510 with a mismash of drives, running Debian 10 and ZFS. So far it has shared this storage over NFS, but that has turned out to cause issues which is why I opted to change the sharing medium to my lovechild iSCSI." />
+<meta property="og:description" content="My lab network has a centralised storage server, a Dell R510 with a mismash of drives, running Debian 10 and ZFS. So far it has shared this storage over NFS, but that has turned out to cause issues which is why I opted to change the sharing medium to my lovechild iSCSI." />
+<link rel="canonical" href="https://blog.spans.fi/2021/04/07/a-tale-of-networked-storage-asymmetric-routing-and-what-not-to-do-when-a-drive-fails.html" />
+<meta property="og:url" content="https://blog.spans.fi/2021/04/07/a-tale-of-networked-storage-asymmetric-routing-and-what-not-to-do-when-a-drive-fails.html" />
+<meta property="og:site_name" content="Spans’ Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-04-07T08:13:52+00:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="A tale of networked storage, asymmetric routing and what not to do when a drive fails" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2021-04-07T08:13:52+00:00","datePublished":"2021-04-07T08:13:52+00:00","description":"My lab network has a centralised storage server, a Dell R510 with a mismash of drives, running Debian 10 and ZFS. So far it has shared this storage over NFS, but that has turned out to cause issues which is why I opted to change the sharing medium to my lovechild iSCSI.","headline":"A tale of networked storage, asymmetric routing and what not to do when a drive fails","mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.spans.fi/2021/04/07/a-tale-of-networked-storage-asymmetric-routing-and-what-not-to-do-when-a-drive-fails.html"},"url":"https://blog.spans.fi/2021/04/07/a-tale-of-networked-storage-asymmetric-routing-and-what-not-to-do-when-a-drive-fails.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="https://blog.spans.fi/feed.xml" title="Spans' Blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Spans&#39; Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">A tale of networked storage, asymmetric routing and what not to do when a drive fails</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2021-04-07T08:13:52+00:00" itemprop="datePublished">Apr 7, 2021
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p>My lab network has a centralised storage server, a Dell R510 with a mismash of drives, running Debian 10 and ZFS. So far it has shared this storage over NFS, but that has turned out to cause issues which is why I opted to change the sharing medium to my lovechild iSCSI.</p>
+
+<h2 id="what-caused-the-change">What caused the change</h2>
+
+<p>In addition to the three ESXi hypervisors using that storage, there are a couple of virtual machines also mounting a share in that server over NFS for their own storage needs. For a couple weeks now, none of the virtual machines have had functioning NFS. I have a hunch it’s an internal bug, caused by a version mismatch between the server and the clients, but I haven’t figured out anything concrete for it. In order to debug it further, I’d have to mess with the NFS server running in the storage server, which isn’t very ideal given every single VM I have runs off that NFS server. This is why I opted to change the VMs to run off an iSCSI target, which leaves the NFS isolated and ready to be tampered with.</p>
+
+<h2 id="migrating-to-iscsi">Migrating to iSCSI</h2>
+
+<p>After I got each hypervisor to mount the newly created iSCSI target on a ZFS zvol, it was time to start migrating all VMs to it. It has to happen via the hypervisors, since they can do it live while the VMs are running. I could transfer the VM files all locally in the storage server, but it’d require disassociating them from ESXi and later registering them again, which is a hassle. There’s a ten gigabit network between the storage server and the hypervisors, so the transfer will go as fast as the drives allow..</p>
+
+<p>right?</p>
+
+<h2 id="the-asymmetric-footgun">The asymmetric footgun</h2>
+
+<p>I began migrating some offline VMs first to see how well they move from one storage medium to.. another? It’s really a copy from the drives back to themselves, just that the protocol changes. Anyways. It was going a bit slow, but surely that’s to be expected. I looked at the ten gigabit switch statistics to see about how well the transfer is going based on the network activity, and I noticed something peculiar.</p>
+
+<p>All the traffic was being put through the switch’s gigabit uplink to my gigabit switch, which is used largely for management network access for OOB devices and such. It immediately clicked what was wrong; the storage server has a gigabit interface in the management network, and a ten gigabit interface also in the same management network. I know, I know, storage and management don’t mix, it’s about to change and I’ve learned my lesson. While the hypervisors were mounting the NFS share over the ten gigabit network, the storage server was responding to it over the gigabit network, which essentially bottlenecked the entire storage access to a single gigabit link. Ten gigabit one way, a single gigabit the other. This also meant that the iSCSI targets had the same gun stuck to their feet. This is a classic issue solvable by policy routing, but I’ve never learned policy routing nor have I actually bothered learning it. This was not the time to learn it though.</p>
+
+<p>It was an easy fix. I created a new VLAN for the storage network, put it strictly into the ten gigabit network and remounted the iSCSI target over it. The NFS was still in the old mess, since changing it would require shutting every VM down, remounting the share and so on and so on, not something I would’ve bothered to do. So I just sucked it up and started migrating VMs over the gigabit bottleneck. No worries, I had time, nothing to worry about.</p>
+
+<h2 id="why-do-drives-always-fail-at-the-critical-moments">Why do drives always fail at the critical moments?</h2>
+
+<p>Except I had to worry about drive failure. While migrating the VMs, it suddenly paused for about five seconds, then continued on like nothing had happened. I looked at vCenter, it had no complaints. I looked at the storage server, and one drive’s LED had stopped blinking. <code class="language-plaintext highlighter-rouge">zpool status</code> confirmed my suspicion; a drive had failed enough writes so ZFS took it offline as unavailable, marked the pool as degraded and continued on. This was the momentary pause in the transfer as ZFS recovered from the fault. At that point if another drive failed, catastrophic data loss would’ve occurred, so I had to figure out something to restore the pool.</p>
+
+<p>Looking at the kernel log messages, it seemed as if the drive had lost power from the storage server’s backplane, and afterwards returned functional (under a different drive device of course). Since the drive was offline from ZFS’s point of view, I could be sure ZFS wouldn’t touch it before I tell it to. I ran a short SMART test on it, which didn’t reveal any faults. The drive’s SMART statistics were fine as well, no reallocated sectors or anything such. Of course, it’s a consumer drive and with consumer drives, SMART is at least a week late in its information and is more useful in confirming that an obviously dead drive is dead.</p>
+
+<h2 id="what-not-to-do-when-a-drive-fails">What not to do when a drive fails</h2>
+
+<p>So I decided to do something silly, and replace the drive in the pool with itself. This is a monkey-see-monkey-do kinda situation, it should go without saying that replacing a possibly faulty drive with another faulty drive often doesn’t end well. Except it did in this case, but give it time and it probably fails again. I emptied the drive’s partition table and all  ZFS signatures, since ZFS refuses to use a drive it sees is already a part of another ZFS pool. After telling ZFS to replace the faulty drive with the “new” one, I began the arduous journey of waiting for the resilver to finish. This is also where computers got to shine with their ETAs again, since this process’ ETA began at an hour, dropped down to 20 minutes and then began rising steadily up until the process was done.</p>
+
+<p>And yeah, it did finish succesfully without more errors, all the while the VM migration was taking place. I’d already started migrating live VMs, and at best there were maybe 15 simultaneous migrations. The network handled it well, ZFS handled it well, all’s well that ends well.</p>
+
+<p>I’ve already ordered replacement drives, since there are two identical drives as the faulty one. I also have plans to reconfigure the entire thing, possibly migrate to vSAN if I can get my hands on some SSDs. Yep, it’ll be one more migration process, although that time actually over the ten gigabit network.</p>
+
+
+  </div><a class="u-url" href="/2021/04/07/a-tale-of-networked-storage-asymmetric-routing-and-what-not-to-do-when-a-drive-fails.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Spans&#39; Blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Spans&#39; Blog</li><li><a class="u-email" href="mailto:me@spans.fi">me@spans.fi</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/spanfile"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">spanfile</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p></p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

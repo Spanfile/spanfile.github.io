@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Installing Debian in LVM on an USB drive (and EFI booting it!) | Spans’ Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="Installing Debian in LVM on an USB drive (and EFI booting it!)" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="This post is largely based on Will Haley’s post over here. I’ve combined it with various Google searches to show how I built a minimal Debian image, ready to be written to an USB drive and booted off. We’ll be using LVM as a middleman in the image to ease with future partition manipulation." />
+<meta property="og:description" content="This post is largely based on Will Haley’s post over here. I’ve combined it with various Google searches to show how I built a minimal Debian image, ready to be written to an USB drive and booted off. We’ll be using LVM as a middleman in the image to ease with future partition manipulation." />
+<link rel="canonical" href="https://blog.spans.fi/2018/11/27/installing-debian-in-lvm-on-an-usb-drive-and-efi-booting-it.html" />
+<meta property="og:url" content="https://blog.spans.fi/2018/11/27/installing-debian-in-lvm-on-an-usb-drive-and-efi-booting-it.html" />
+<meta property="og:site_name" content="Spans’ Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2018-11-27T18:06:00+00:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Installing Debian in LVM on an USB drive (and EFI booting it!)" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2018-11-27T18:06:00+00:00","datePublished":"2018-11-27T18:06:00+00:00","description":"This post is largely based on Will Haley’s post over here. I’ve combined it with various Google searches to show how I built a minimal Debian image, ready to be written to an USB drive and booted off. We’ll be using LVM as a middleman in the image to ease with future partition manipulation.","headline":"Installing Debian in LVM on an USB drive (and EFI booting it!)","mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.spans.fi/2018/11/27/installing-debian-in-lvm-on-an-usb-drive-and-efi-booting-it.html"},"url":"https://blog.spans.fi/2018/11/27/installing-debian-in-lvm-on-an-usb-drive-and-efi-booting-it.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="https://blog.spans.fi/feed.xml" title="Spans' Blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Spans&#39; Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Installing Debian in LVM on an USB drive (and EFI booting it!)</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2018-11-27T18:06:00+00:00" itemprop="datePublished">Nov 27, 2018
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p>This post is largely based on Will Haley’s post over <a href="https://willhaley.com/blog/install-debian-usb/">here</a>. I’ve combined it with various Google searches to show how I built a minimal Debian image, ready to be written to an USB drive and booted off. We’ll be using LVM as a middleman in the image to ease with future partition manipulation.</p>
+
+<h2 id="prerequisites">Prerequisites</h2>
+
+<p>You’ll need <code class="language-plaintext highlighter-rouge">debootstrap</code> to create the Debian installation, and its archive GPG keyring to validate the packages it’ll download (you’ll need <code class="language-plaintext highlighter-rouge">gpg</code> as well for the keyring). If you’re on Debian or Ubuntu, you should have these already. I’m on Arch Linux, so my respective packages to install are called <code class="language-plaintext highlighter-rouge">debootstrap</code> and <code class="language-plaintext highlighter-rouge">debian-archive-keyring</code>. Your mileage may vary. For good measure, I grabbed <code class="language-plaintext highlighter-rouge">ubuntu-archive-keyring</code> as well.</p>
+
+<h2 id="image-file">Image file</h2>
+
+<p>To ease the process, we’ll create a disk image file to install Debian into, and later copy this to as many physical drives as we want.</p>
+
+<p>Create the 0-filled image file. My USB drives are marketed at 16 gigs, in reality they show up at just over 14, so I’ll be creating a 14 gigabyte image; adjust as needed. The minimum size is probably 2 gigabytes, depending on the software you install:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ fallocate -l 14G debian.img
+</code></pre></div></div>
+
+<p>Open it with fdisk:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ fdisk debian.img
+</code></pre></div></div>
+
+<p>fdisk automatically creates a BIOS (MBR) partition table in the image. We’ll be using EFI, so create a new GPT partition table:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>g
+</code></pre></div></div>
+
+<p>Create the EFI boot partition, size it appropriately and set its type correctly (<code class="language-plaintext highlighter-rouge">EFI System</code>, identifier <code class="language-plaintext highlighter-rouge">1</code>). 200 to 250 mibibytes is the recommended minimum size for Debian’s boot partition (once the image was complete, I found the bootloader to only take some hundred kilobytes):</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>n 1 2048 +200M t 1
+</code></pre></div></div>
+
+<p>Create the LVM physical volume partition into the rest of the empty space (or make it a certain size, up to you) and change its type accordingly. Its type will be either in decimal or hexadecimal, see the list of types <code class="language-plaintext highlighter-rouge">L</code> if needed:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>n 2 &lt;enter&gt; &lt;enter&gt;
+t 2 31
+</code></pre></div></div>
+
+<p>We’ll be creating more partitions as logical volumes inside this physical volume later so we don’t need any more partitions here.</p>
+
+<p>Write the changes:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>w
+</code></pre></div></div>
+
+<p>Create a <a href="https://en.wikipedia.org/wiki/Loop_device">loop device</a> out of the image:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># losetup --partscan --show --find debian.img
+</code></pre></div></div>
+
+<p>The command will output which loop device it mounted the image to, check that it and its corresponding partitions are found (for me, the device is <code class="language-plaintext highlighter-rouge">/dev/loop0</code> so the partitions are <code class="language-plaintext highlighter-rouge">/dev/loop0p1</code> and <code class="language-plaintext highlighter-rouge">/dev/loop0p2</code>):</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ ls /dev/loop0*
+&gt; /dev/loop0 /dev/loop0p1 /dev/loop0p2
+</code></pre></div></div>
+
+<p>The first partition is the EFI System, create a FAT32-filesystem in it. It’s important you use FAT32, EFI won’t work on anything else:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># mkfs.fat -F 32 /dev/loop0p1
+</code></pre></div></div>
+
+<p>Create an LVM physical volume inside the other partition:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># pvcreate /dev/loop0p2
+</code></pre></div></div>
+
+<p>Create a volume group out of the physical volume:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># vgcreate debian-vg /dev/loop0p2
+</code></pre></div></div>
+
+<p>We’ll be separating <code class="language-plaintext highlighter-rouge">/var</code> into its own five-gigabyte partition for future purposes, create a logical volume for it:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># lvcreate -L 5G --name var debian-vg
+</code></pre></div></div>
+
+<p>If you want more logical volumes, create them appropriately now. Create the root logical volume into the rest of the empty space:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># lvcreate -l +100%FREE --name root debian-vg
+</code></pre></div></div>
+
+<p>Create ext4-filesystems into the logical volumes (or whichever filesystem you favour). If the volume group doesn’t show up as its own directory in <code class="language-plaintext highlighter-rouge">/dev</code>, the logical volumes should be available directly under <code class="language-plaintext highlighter-rouge">/dev/mapper</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># mkfs.ext4 /dev/debian-var/root
+# mkfs.ext4 /dev/debian-var/var
+</code></pre></div></div>
+
+<p>If you created any extra logical volumes, create filesystems in them as well now.</p>
+
+<h2 id="base-image-root">Base image root</h2>
+
+<p>We’ll mount the image under <code class="language-plaintext highlighter-rouge">/mnt/debian</code>, and into it we have to mount the special system directories from our host system.</p>
+
+<p>Create the mount point for the root partition:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># mkdir -p /mnt/debian
+</code></pre></div></div>
+
+<p>Mount the root logical volume:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># mount /dev/debian-vg/root /mnt/debian
+</code></pre></div></div>
+
+<p>Create mount points for the rest of the logical volumes and the boot partition:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># mkdir -p /mnt/debian/var
+# mkdir -p /mnt/debian/boot/efi
+</code></pre></div></div>
+
+<p>Mount them:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># mount /dev/loop0p1 /mnt/debian/boot/efi
+# mount /dev/debian-vg/var /mnt/debian/var
+</code></pre></div></div>
+
+<p>Bootstrap the install. As we’re building an EFI-booted install, 32-bit support is not straight-forward or even possible, so it’s outside the scope of this post. To speed the package download a bit, pick a Debian mirror close to you from <a href="https://www.debian.org/mirror/list">the Debian mirror list</a>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># debootstrap --arch=amd64 --variant=minbase stretch /mnt/debian http://ftp.fi.debian.org/debian/
+</code></pre></div></div>
+
+<p>Mount special devices from your system into the image to create a complete system root:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># mount -o bind /dev /mnt/debian/dev
+# mount -t proc /proc /mnt/debian/proc
+# mount -t sysfs /sys /mnt/debian/sys
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">chroot</code> into it:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># chroot /mnt/debian
+</code></pre></div></div>
+
+<h2 id="system-setup">System setup</h2>
+
+<p><code class="language-plaintext highlighter-rouge">chroot</code> inherits your environment variables from the host system into the chroot. Make sure your <code class="language-plaintext highlighter-rouge">PATH</code> environment variable contains <code class="language-plaintext highlighter-rouge">/bin</code>, <code class="language-plaintext highlighter-rouge">/usr/bin</code>, <code class="language-plaintext highlighter-rouge">/sbin</code> and <code class="language-plaintext highlighter-rouge">/usr/sbin</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># export PATH=$PATH:/bin:/usr/bin:/sbin:/usr/sbin
+</code></pre></div></div>
+
+<p>Install required packages for installing the rest of the system, and some additional handy utilities. If this step fails because of an unknown apt-key error, make sure your <code class="language-plaintext highlighter-rouge">PATH</code> is correct (see step above). Grub might try to install itself during this install, and will fail; it’s okay, we’ll install it properly later:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># apt update
+# apt install linux-image-amd64 systemd-sysv grub2-common grub-efi lvm2 apt-utils
+# apt install iproute2 iputils-ping man vim dialog less
+</code></pre></div></div>
+
+<p>Add entries for the partitions <code class="language-plaintext highlighter-rouge">/etc/fstab</code>. It’s important to identify the partitions with their labels, as their mountpoints and UUIDs may change across devices. We’ll create these labels later, add their entries now:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>LABEL=DEBBOOT /boot/efi vfat defaults 0 0
+LABEL=DEBROOT / ext4 defaults 0 1
+LABEL=DEBVAR /var ext4 defaults 0 2
+</code></pre></div></div>
+
+<p>Edit <code class="language-plaintext highlighter-rouge">/etc/initramfs-tools/modules</code> to contain <code class="language-plaintext highlighter-rouge">lvm2</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># ...
+# Examples:
+#
+# raid1
+# sd_mod
+
+lvm2
+</code></pre></div></div>
+
+<p>Update the init RAM filesystem:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># update-initramfs -u
+</code></pre></div></div>
+
+<p>These next few steps for grub will most likely complain about not being able to connect to <code class="language-plaintext highlighter-rouge">lvmetad</code>, you can ignore the warnings as the daemon doesn’t exist in the chroot and is instead outside it in your host system.</p>
+
+<p>Install grub to the mounted boot partition. The bootloader ID is largely irrelevant as the <code class="language-plaintext highlighter-rouge">--removable</code> flag tells the installer to not add its entry to the system’s EFI variables (there are none in the chroot):</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># grub-install \
+    --target=x86_46-efi \
+    --efi-directory=/boot/efi \
+    --bootloader-id=Debian \
+    --force-file-id \
+    --skip-fs-probe \
+    --removable
+</code></pre></div></div>
+
+<p>Edit <code class="language-plaintext highlighter-rouge">/etc/default/grub</code> if you need to. I’ll leave it as is now. Generate grub’s config:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># grub-mkconfig -o /boot/grub/grub.cfg
+</code></pre></div></div>
+
+<p>Grub by default might detect existing operating systems and allow you boot into them; it’ll detect your host system and create entries for it. Delete them from <code class="language-plaintext highlighter-rouge">/boot/grub/grub.cfg</code>, or disable the feature file <code class="language-plaintext highlighter-rouge">/etc/grub.d/30_os-prober</code> and create a new config for grub.</p>
+
+<p>Add additional Debian package repositories for security updates to <code class="language-plaintext highlighter-rouge">/etc/apt/sources.list</code>. Change the Debian mirror to something close to you, as previously done:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>deb http://ftp.fi.debian.org/debian stretch main
+deb-src http://ftp.fi.debian.org/debian stretch main
+
+deb http://security.debian.org/debian-security stretch/updates main
+deb-src http://security.debian.org/debian-security stretch/updates main
+
+deb http://ftp.fi.debian.org/debian/ stretch-updates main
+deb-src http://ftp.fi.debian.org/debian/ stretch-updates main
+</code></pre></div></div>
+
+<p>Do whatever you additionally need to at this point, such as setting root’s password, setting the hostname and adding entries to the hosts-file:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># passwd
+# cat "debian-usb" &gt; /etc/hostname
+# cat "127.0.0.1 localhost" &gt; /etc/hosts
+# cat "127.0.1.1 debian-usb" &gt;&gt; /etc/hosts
+</code></pre></div></div>
+
+<p>Finally exit the chroot:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># exit
+</code></pre></div></div>
+
+<h2 id="finalising-the-image">Finalising the image</h2>
+
+<p>Unmount the image entirely:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># umount -R /mnt/debian
+</code></pre></div></div>
+
+<p>As we’re identifying the image partitions by their labels, we have to set them appropriately now:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># fatlabel /dev/loop0p1 DEBBOOT
+# e2label /dev/debian-vg/root DEBROOT
+# e2label /dev/debian-vg/var DEBVAR
+</code></pre></div></div>
+
+<p>Deactivate the volume group:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># vgchange -ay debian-vg
+</code></pre></div></div>
+
+<p>Delete the loop device:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># losetup -d /dev/loop0
+</code></pre></div></div>
+
+<p>You can now write the image file into as many drives as you wish, each booting into a minimal Debian:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># dd if=debian.img of=/dev/sdX bs=1M status=progress
+</code></pre></div></div>
+
+<h2 id="moving-on">Moving on</h2>
+
+<h3 id="booting">Booting</h3>
+
+<p>I found the boot process to complain about not being able to connect to <code class="language-plaintext highlighter-rouge">lvmetad</code> and failing <code class="language-plaintext highlighter-rouge">fsck</code> for the partitions, but moments later the daemon starts up and the system continues mounting the partitions just fine, and proceeds to give me a login prompt. <code class="language-plaintext highlighter-rouge">fsck</code> didn’t seem to run though.</p>
+
+<h3 id="move-partitions">Move partitions</h3>
+
+<p>The primary reason I used LVM and had <code class="language-plaintext highlighter-rouge">/var</code> in its own partition is when I’ve deployed the image to an USB drive and moved it permanently into a system, I want to move <code class="language-plaintext highlighter-rouge">/var</code> into proper mass storage as to not have the constant log writes in <code class="language-plaintext highlighter-rouge">/var/log</code> kill the USB drive. This is simply achieved by creating a new physical volume with <code class="language-plaintext highlighter-rouge">pvcreate</code>, extending the volume group with <code class="language-plaintext highlighter-rouge">vgextend</code>, and moving the logical volume with <code class="language-plaintext highlighter-rouge">pvmove</code>, where <code class="language-plaintext highlighter-rouge">/dev/sdb1</code> is the new physical volume and <code class="language-plaintext highlighter-rouge">/dev/sda2</code> is the existing one:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># pvcreate /dev/sdb1
+# vgextend debian-vg /dev/sdb1
+# pvmove -n /dev/debian-vg/var /dev/sda2 /dev/sdb1
+</code></pre></div></div>
+
+<p><em>Make sure the partition is inactive and unmounted, it’s best to do this from a live boot if you’re moving the root partition.</em></p>
+
+<h3 id="networking">Networking</h3>
+
+<p>We installed systemd to the image, which will handle network configuration for the OS. A simple configuration to get an address for an interface with DHCP would be as such:</p>
+
+<p>Create a file called <code class="language-plaintext highlighter-rouge">&lt;inet&gt;.network</code> in <code class="language-plaintext highlighter-rouge">/etc/systemd/system/network/</code>. Replace <code class="language-plaintext highlighter-rouge">&lt;inet&gt;</code> with your primary interface’s name (see <code class="language-plaintext highlighter-rouge"># ip link</code>). Fill the file with the following, again using the proper interface name:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[Match]
+Name=&lt;inet&gt;
+[Network]
+DHCP=ipv4
+</code></pre></div></div>
+
+<p>Restart the networking service and enable it to start on boot:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># systemctl restart systemd-networkd
+# systemctl enable systemd-networkd
+</code></pre></div></div>
+
+<p>Bring the network link up:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># ip link set &lt;inet&gt; up
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">systemd-networkd</code> will detect the link being up and assign it an address with DHCP.</p>
+
+<h3 id="time-and-date">Time and date</h3>
+
+<p>The system’s timezone can be configured with <code class="language-plaintext highlighter-rouge">dpkg-reconfigure</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># dpkg-reconfigure tzdata
+</code></pre></div></div>
+
+<p>You may want to optionally install <code class="language-plaintext highlighter-rouge">dialog</code> for a nicer terminal UI:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># apt install dialog
+</code></pre></div></div>
+
+<h3 id="keyboard-and-locale">Keyboard and locale</h3>
+
+<p>Locales and keyboard are easily configured by first installing their respective packages for debconf;</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># apt install locales keyboard-configuration
+</code></pre></div></div>
+
+<p>They can be later adjusted with:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># dpkg-reconfigure locales
+# dpkg-reconfigure keyboard-configuration
+</code></pre></div></div>
+
+<h2 id="sources-in-no-particular-order">Sources in no particular order</h2>
+
+<ul>
+  <li><a href="https://willhaley.com/blog/install-debian-usb/">https://willhaley.com/blog/install-debian-usb/</a></li>
+  <li><a href="https://help.ubuntu.com/community/DiskSpace">https://help.ubuntu.com/community/DiskSpace</a></li>
+  <li><code class="language-plaintext highlighter-rouge">man mkfs.fat</code></li>
+  <li><code class="language-plaintext highlighter-rouge">man debootstrap</code></li>
+  <li><a href="https://www.debian.org/mirror/list">https://www.debian.org/mirror/list</a></li>
+  <li><a href="https://wiki.archlinux.org/index.php/GRUB">https://wiki.archlinux.org/index.php/GRUB</a></li>
+  <li><a href="https://wiki.debian.org/GrubEFIReinstall">https://wiki.debian.org/GrubEFIReinstall</a></li>
+  <li><code class="language-plaintext highlighter-rouge">man grub-install</code></li>
+  <li><a href="https://en.wikipedia.org/wiki/Loop_device">https://en.wikipedia.org/wiki/Loop_device</a></li>
+  <li><a href="https://wiki.debian.org/LVM">https://wiki.debian.org/LVM</a></li>
+  <li><code class="language-plaintext highlighter-rouge">man pvcreate</code></li>
+  <li><code class="language-plaintext highlighter-rouge">man vgcreate</code></li>
+  <li><code class="language-plaintext highlighter-rouge">man lvcreate</code></li>
+  <li><code class="language-plaintext highlighter-rouge">man vgchange</code>
+<!--kg-card-end: markdown--></li>
+</ul>
+
+  </div><a class="u-url" href="/2018/11/27/installing-debian-in-lvm-on-an-usb-drive-and-efi-booting-it.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Spans&#39; Blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Spans&#39; Blog</li><li><a class="u-email" href="mailto:me@spans.fi">me@spans.fi</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/spanfile"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">spanfile</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p></p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

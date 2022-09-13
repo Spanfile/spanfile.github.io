@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Why your port-forward doesn’t work | Spans’ Blog</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="Why your port-forward doesn’t work" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="There’s a million and then some guides online that tell you how to set up a port-forward in your home router box, but what about when the forward doesn’t actually work? In this post I’ve collected the common reasons why after a port-forward you still can’t get your friend to connect to your cool Minecraft server (or for that matter, any online service behind your router box), and what you may be able to do about it." />
+<meta property="og:description" content="There’s a million and then some guides online that tell you how to set up a port-forward in your home router box, but what about when the forward doesn’t actually work? In this post I’ve collected the common reasons why after a port-forward you still can’t get your friend to connect to your cool Minecraft server (or for that matter, any online service behind your router box), and what you may be able to do about it." />
+<link rel="canonical" href="https://blog.spans.fi/2020/09/13/why-your-port-forward-doesnt-work.html" />
+<meta property="og:url" content="https://blog.spans.fi/2020/09/13/why-your-port-forward-doesnt-work.html" />
+<meta property="og:site_name" content="Spans’ Blog" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2020-09-13T21:40:17+00:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Why your port-forward doesn’t work" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2020-09-13T21:40:17+00:00","datePublished":"2020-09-13T21:40:17+00:00","description":"There’s a million and then some guides online that tell you how to set up a port-forward in your home router box, but what about when the forward doesn’t actually work? In this post I’ve collected the common reasons why after a port-forward you still can’t get your friend to connect to your cool Minecraft server (or for that matter, any online service behind your router box), and what you may be able to do about it.","headline":"Why your port-forward doesn’t work","mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.spans.fi/2020/09/13/why-your-port-forward-doesnt-work.html"},"url":"https://blog.spans.fi/2020/09/13/why-your-port-forward-doesnt-work.html"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="https://blog.spans.fi/feed.xml" title="Spans' Blog" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Spans&#39; Blog</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Why your port-forward doesn&#39;t work</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2020-09-13T21:40:17+00:00" itemprop="datePublished">Sep 13, 2020
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p>There’s a million and then some guides online that tell you how to set up a port-forward in your home router box, but what about when the forward doesn’t actually work? In this post I’ve collected the common reasons why after a port-forward you still can’t get your friend to connect to your cool Minecraft server (or for that matter, any online service behind your router box), and what you may be able to do about it.</p>
+
+<p>I’ll assume the port-forward is done correctly; the rules are correct, the addresses are fine, and that the service accepts incoming connections just fine.</p>
+
+<h2 id="reason-1-isp-traffic-restrictions">Reason #1: ISP traffic restrictions</h2>
+
+<p>The simple way to model your home network is as such:</p>
+
+<p><img src="/assets/2020/08/port-forward-1.png" alt="Simple home network diagram" /></p>
+
+<p>That cloud there is the Internet (through your ISP), then you got your router box to which all your devices are connected. In this scenario your router is plugged “directly” into the Internet and thus, is assigned an external address from the public address space (whether its v4 or v6 addresses).</p>
+
+<p>To confirm the topology really is as described here, take note of your router’s assigned external address. Then lookup “what is my ip” and the search engine (or its first result) tells you your publicly visible address - the address your connections are coming from and from which returning traffic gets back to you. If this address and your router’s external address are the same, your network really looks like this one. If not, skip ahead to reason #2.</p>
+
+<p>Given it has a public external address, anyone also connected to the Internet can send traffic to that address and it’ll reach your router. Probably. It has to go through your ISP first of course, and they might not just let anything through.</p>
+
+<p>From an ISP’s point of view, home networks aren’t meant to run any public services, because otherwise it’d count as a business and the ISP could bill you a <em>lot</em> more for a business connection. Thus, since there’s no need to allow any new connections in, they just outright block it all. But in today’s world, having publicly accessible services doesn’t mean you’re hosting something. It could be VoIP, a game you play with friends, and so on. And so, ISPs do let connections in, but with some usual restrictions.</p>
+
+<h3 id="restriction-1-block-spammy-services">Restriction #1: block “spammy” services</h3>
+
+<p>A large portion of the Internet’s traffic is email, and a <strong>large</strong> portion of that is spam email. Consumer ISPs alleviate this issue by not allowing your network send or receive email directly with SMTP, thus blocking the ports 25, 465 and 587 on both directions. Your ISP might offer an SMTP relay, through which you can send and (maybe) receive email. So if you’re trying to self-host email in your network, your ISP is aware how tremendously bad of an idea it is and doesn’t let you use it in the first place.</p>
+
+<h3 id="restriction-2-block-non-standard-ports">Restriction #2: block non-standard ports</h3>
+
+<p>For one reason or another, your ISP could be blocking ports that aren’t widely associated with any known service. This basically means you can only get SSH in to port 22, HTTPS to 443 and so on. If you’re using a non-standard port for your service, try its standard port.</p>
+
+<h3 id="restriction-3-block-standard-port">Restriction #3: block standard port</h3>
+
+<p>This is the opposite to the above. Instead of allowing services only in their standard ports, your ISP could <em>block</em> them on their standard ports. It’s kind of a good thing really; not having your SSH on 22 reduces the chance of an automated bot getting in when it can’t quickly find you in the first place. Try some other port that isn’t the service’s standard port.</p>
+
+<h2 id="reason-2-double-nat-or-cgnat">Reason #2: double-NAT or CGNAT</h2>
+
+<p>Remember that network diagram from earlier? And the external address checking? It’s very likely your network doesn’t look like that, but instead looks like:</p>
+
+<p><img src="/assets/2020/08/port-forward-2.png" alt="Much more realistic network diagram" /></p>
+
+<p>The box on the left there is your ISP, from which you get to the Internet (the cloud). Now, instead of your router being plugged “directly” to the Internet, your ISP has another router doing NAT in between, in the same manner as your router does NAT. This is known as double-NAT or CGNAT (Carrier Grade NAT). The reason your ISP does this is because of IPv4 address space exhaustion. In the grand scheme of things there aren’t that many v4 addresses, and they’ve all been allocated to some entities for years now. Effectively it means we’ve ran out of addresses.</p>
+
+<p>What ISPs do to help with this issue is stick multiple customers behind a router that adds a layer of NAT. This allows the ISP to have hundreds (if not thousands) of customers behind just one public v4 address, instead of assigning each customer their own address (the previous scenario). This, however, means that there’s no way you can get any new traffic into your network. None. Here, your router’s external address is just some private address in your ISP’s double-NAT’ed network, and your publicly visible address is that of the router’s doing the double-NAT. Just like your router doing port-forwarding, in order for the new connections to reach you, they’d have to get through your ISP’s double-NAT’ing router which you have no control over. And no, your ISP is not going to add a port-forward there for you.</p>
+
+<p>Unfortunately there’s not much you can do about this. You could contact your ISP and ask for a public address, but it’s unlikely to happen. This kind of topology is very common in mobile connections, and sometimes on older DSL connections. Your best bet would be to get a proper broadband connection, of course researching beforehand if the connection plan gives you a public external address.</p>
+
+  </div><a class="u-url" href="/2020/09/13/why-your-port-forward-doesnt-work.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">Spans&#39; Blog</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">Spans&#39; Blog</li><li><a class="u-email" href="mailto:me@spans.fi">me@spans.fi</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/spanfile"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">spanfile</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p></p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

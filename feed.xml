@@ -1,0 +1,1342 @@
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://blog.spans.fi/feed.xml" rel="self" type="application/atom+xml" /><link href="https://blog.spans.fi/" rel="alternate" type="text/html" /><updated>2022-09-13T13:19:39+00:00</updated><id>https://blog.spans.fi/feed.xml</id><title type="html">Spans’ Blog</title><subtitle></subtitle><entry><title type="html">My DN42 network (so far)</title><link href="https://blog.spans.fi/2021/12/13/my-dn42-network-so-far.html" rel="alternate" type="text/html" title="My DN42 network (so far)" /><published>2021-12-13T12:47:21+00:00</published><updated>2021-12-13T12:47:21+00:00</updated><id>https://blog.spans.fi/2021/12/13/my-dn42-network-so-far</id><content type="html" xml:base="https://blog.spans.fi/2021/12/13/my-dn42-network-so-far.html"><![CDATA[<p>A couple months ago I joined <a href="https://dn42.us/">DN42</a>, and I’ve spent some of my spare time since then building my little chunk of (mostly) virtualised network there.</p>
+
+<p>If you haven’t heard of DN42 before, their site says it’s a “dynamic interconnected VPN”, and that is correct, but I don’t think it tells the whole story. I’d instead describe it as a virtual internet on top of the real one. It functions more-or-less like the actual internet, just without so much bureaucracy and physicality. Instead of many entities building physical networks and gathering in the same datacenters - IXes - there are hobbyists building their own networks and using the actual internet as one large IX. Networks aren’t connected with physical cables linking routers (most of the time), but instead are connected with VPN tunnels.</p>
+
+<p>I’ve hid a certain theme in the network, see if you can figure it out! Shouldn’t be too difficult ;)</p>
+
+<h1 id="the-network">The network</h1>
+
+<p>This network diagram is an SVG, feel free to open it in a new tab to get a clearer view.</p>
+
+<p><img src="/assets/2021/12/Spans-DN42.svg" alt="The network diagram" /></p>
+
+<p>Let’s start from the beginning. I want to use the network to learn about company networking; different interconnected sites, the various internal services, public services and so on. I picked the AS number 4242422038. I’ve been allocated (well, I chose to allocate myself) an IPv4 block, 172.23.38.128/27 and an IPv6 block fd38:119:314::/48. I picked a scheme that lets me split the space into various sites and their subnets. IPv4 allocations from the public block are more-or-less arbitrary, since it’s so small. Right now I’ve just split it into two /28s. If I need more in the future, I might just request another /27 instead of splitting these further into even smaller blocks.</p>
+
+<p>For the private networks I chose the block 10.42.0.0/16, out of which it is simple to allocate individual /24s - the realistic minimum for a private IPv4 network. This scheme lets me pick anything between 0 and 255 for the third octet, so I went with using the site identifier for it. This by itself means each site can only have a single /24, but this is my network, I can just pick some unused subnet and assign it to a site that needs one.</p>
+
+<p>The v6 block is easier, since there’s a lot more space for separate subnets in the single allocation. Since the realistic subnet allocation for IPv6 is a /64, a /48 leaves 16 bits, or two bytes, of address to pick for each subnet. In total that’s 65,536 subnets, which should be enough ;) I split the two bytes between /48 and /64 into two, where the upper byte is the site identifier and the lower byte is the subnet identifier. The zeroth subnet is always the public segment for each site.</p>
+
+<p>In practice, this means the first site, also known as “Kludge”, gets 172.23.38.128/28 &amp; fd38:119:314::0/64 for the public segment, and 10.42.0.0/24 &amp; fd38:119:314:1::/64 for the private segment. The second site, “Jank”, gets 172.23.38.144/28 &amp; fd38:119:314:100::/64 for its public segment and 10.42.1.0/24 and fd38:119:314:101::/64 for its private segment.</p>
+
+<h1 id="the-sites">The sites</h1>
+
+<p>The routers in each site are always assigned the first address in each subnet. The addresses assigned in the public segment are also what they use as router identifiers for (i)BGP and point-to-point tunnel endpoints.</p>
+
+<p>Each site at a minimum has:</p>
+
+<ul>
+  <li>A pair of local DNS resolvers. These provide a local DNS service for the site. They use DN42’s anycast resolvers for upstream DNS.</li>
+  <li>A monitoring satellite. Except of course in the primary site, Kludge, which has the monitoring master. These satellites help ease the load on the site-to-site connectivity and monitoring by delegating host and service checking to them, and reporting their statuses back to the master.</li>
+</ul>
+
+<p>Most services across the sites are running in separate virtual machines hosted by my vSphere lab cluster. The VMs are running AlmaLinux 8.</p>
+
+<h2 id="kludge">Kludge</h2>
+
+<p>The primary site is Kludge, and it hosts most of the services in the network. The site publicly hosts:</p>
+
+<ul>
+  <li>One of the two nameservers.</li>
+  <li>The public dashboard to view network statistics.</li>
+  <li>Soon: a looking glass service.</li>
+</ul>
+
+<p>Privately it hosts:</p>
+
+<ul>
+  <li>The hidden primary nameserver. More about this later.</li>
+  <li>A Prometheus instance for gathering metrics. This is used by the public dashboard.</li>
+  <li>An Icinga2 master instance for monitoring everything across the sites. More about this later as well.</li>
+</ul>
+
+<p>Its router is FI-TRE1, a virtual machine. Its denotes where the router is physically located in the world. This router is connected to various peers in the DN42 network with Wireguard, so it also handles all connectivity to DN42 from my network. For BGP and other routing it uses Bird2, and for IPsec it uses strongSwan with swanctl.</p>
+
+<h2 id="jank">Jank</h2>
+
+<p>The first secondary site is called Jank. Publicly it only hosts the second nameserver. Privately it has an Icinga2 satellite host for monitoring its services. Its router is FI-TRE2, and it’s a physical Juniper SRX300 router. It connects to only FI-TRE1 with a point-to-point IPsec tunnel. Not many people seem to want to do IPsec in DN42, I wonder why.. ;)</p>
+
+<p>Physically this site runs in the very same cluster as the first site, it’s separated only logically with VLANs.</p>
+
+<h1 id="the-services">The services</h1>
+
+<h2 id="nameservers">Nameservers</h2>
+
+<p>My domain name in DN42 is spans.dn42. I host two authoritative nameservers for it, nicknamed Unix and Epoch. The first one is hosted in the site Kludge, and the other one in the site Jank. I employ a hidden master technique for them, which means both of the public nameservers are actually secondary nameservers. The primary nameserver lives isolated in the private segment in Kludge, so exposure to it from the public network is limited. It cannot even be queried directly; its only purpose is to host the various zones and synchronise them to the two public secondaries. The secondaries don’t have the right to modify the zones, so in the event of their breach (who would be so vile in DN42 anyways..) an attacker wouldn’t have control of the zones.</p>
+
+<p>Each of the nameservers run PowerDNS with the PostgreSQL backend. The hidden primary uses PowerDNS-Admin to modify and control the zones with a web interface.</p>
+
+<p>The private resolvers in each site run PowerDNS’s Recursor.</p>
+
+<h2 id="monitoring-and-statistics">Monitoring and statistics</h2>
+
+<p>In Kludge, there is a centralised Icinga2 instance that acts as a master for all monitoring zones. In each site other than Kludge, there is an Icinga2 satellite host that defines the monitoring zone for that site. Icinga delegates checking for hosts and services in the sites to their respective, and the satellites then report the results back to the Icinga master. This eases the load between the sites, as the master doesn’t have to check each host and service in the sites itself.</p>
+
+<p>For each Linux host, the basic things are monitored; system load, memory use, drive usage. Additionally, for each host their own services are monitored, such as DNS availability for each resolver, and authoritative zone synchronisation between the primary and two secondary nameservers. The actual monitoring happens using the SSH daemon in each host, such that the monitoring instance opens an SSH connection to each host, runs the corresponding plugin and returns its output. This removes the need for separate monitoring agents.</p>
+
+<p>In Kludge, there is a Prometheus instance that gathers metrics from various hosts in the network. These include:</p>
+
+<ul>
+  <li>Routers in each site. Depending on their type the collection method varies. VM routers use node_exporter just like any other VM, wireguard_exporter for Wireguard metrics and bird_exporter for routing metrics. Physical routers are queried with SNMP.</li>
+  <li>The authoritative PowerDNS server and the PowerDNS Recursor both expose metrics related to their DNS operation. These include incoming queries, answered questions, cache hits, answer latency and so on.</li>
+</ul>
+
+<p>The <a href="https://dash.spans.dn42">public dashboard</a> displays some of these metrics. It uses a self-signed certificate because I haven’t yet been arsed enough to get a certificate signed by the DN42 CA.</p>
+
+<h1 id="final-words">Final words</h1>
+
+<p>It’s been quite fun so far messing with the network and its various services in a lab environment. I’m still planning to add more things such as centralised authentication, virtual workstations in the zones, more zones in separate physical locations, and a looking glass I’m writing myself - more about that later? ;)</p>
+
+<p>Oh, did you figure out the hidden theme?</p>]]></content><author><name></name></author><category term="networking" /><category term="homelab" /><summary type="html"><![CDATA[A couple months ago I joined DN42, and I’ve spent some of my spare time since then building my little chunk of (mostly) virtualised network there.]]></summary></entry><entry><title type="html">A tale of networked storage, asymmetric routing and what not to do when a drive fails</title><link href="https://blog.spans.fi/2021/04/07/a-tale-of-networked-storage-asymmetric-routing-and-what-not-to-do-when-a-drive-fails.html" rel="alternate" type="text/html" title="A tale of networked storage, asymmetric routing and what not to do when a drive fails" /><published>2021-04-07T08:13:52+00:00</published><updated>2021-04-07T08:13:52+00:00</updated><id>https://blog.spans.fi/2021/04/07/a-tale-of-networked-storage-asymmetric-routing-and-what-not-to-do-when-a-drive-fails</id><content type="html" xml:base="https://blog.spans.fi/2021/04/07/a-tale-of-networked-storage-asymmetric-routing-and-what-not-to-do-when-a-drive-fails.html"><![CDATA[<p>My lab network has a centralised storage server, a Dell R510 with a mismash of drives, running Debian 10 and ZFS. So far it has shared this storage over NFS, but that has turned out to cause issues which is why I opted to change the sharing medium to my lovechild iSCSI.</p>
+
+<h2 id="what-caused-the-change">What caused the change</h2>
+
+<p>In addition to the three ESXi hypervisors using that storage, there are a couple of virtual machines also mounting a share in that server over NFS for their own storage needs. For a couple weeks now, none of the virtual machines have had functioning NFS. I have a hunch it’s an internal bug, caused by a version mismatch between the server and the clients, but I haven’t figured out anything concrete for it. In order to debug it further, I’d have to mess with the NFS server running in the storage server, which isn’t very ideal given every single VM I have runs off that NFS server. This is why I opted to change the VMs to run off an iSCSI target, which leaves the NFS isolated and ready to be tampered with.</p>
+
+<h2 id="migrating-to-iscsi">Migrating to iSCSI</h2>
+
+<p>After I got each hypervisor to mount the newly created iSCSI target on a ZFS zvol, it was time to start migrating all VMs to it. It has to happen via the hypervisors, since they can do it live while the VMs are running. I could transfer the VM files all locally in the storage server, but it’d require disassociating them from ESXi and later registering them again, which is a hassle. There’s a ten gigabit network between the storage server and the hypervisors, so the transfer will go as fast as the drives allow..</p>
+
+<p>right?</p>
+
+<h2 id="the-asymmetric-footgun">The asymmetric footgun</h2>
+
+<p>I began migrating some offline VMs first to see how well they move from one storage medium to.. another? It’s really a copy from the drives back to themselves, just that the protocol changes. Anyways. It was going a bit slow, but surely that’s to be expected. I looked at the ten gigabit switch statistics to see about how well the transfer is going based on the network activity, and I noticed something peculiar.</p>
+
+<p>All the traffic was being put through the switch’s gigabit uplink to my gigabit switch, which is used largely for management network access for OOB devices and such. It immediately clicked what was wrong; the storage server has a gigabit interface in the management network, and a ten gigabit interface also in the same management network. I know, I know, storage and management don’t mix, it’s about to change and I’ve learned my lesson. While the hypervisors were mounting the NFS share over the ten gigabit network, the storage server was responding to it over the gigabit network, which essentially bottlenecked the entire storage access to a single gigabit link. Ten gigabit one way, a single gigabit the other. This also meant that the iSCSI targets had the same gun stuck to their feet. This is a classic issue solvable by policy routing, but I’ve never learned policy routing nor have I actually bothered learning it. This was not the time to learn it though.</p>
+
+<p>It was an easy fix. I created a new VLAN for the storage network, put it strictly into the ten gigabit network and remounted the iSCSI target over it. The NFS was still in the old mess, since changing it would require shutting every VM down, remounting the share and so on and so on, not something I would’ve bothered to do. So I just sucked it up and started migrating VMs over the gigabit bottleneck. No worries, I had time, nothing to worry about.</p>
+
+<h2 id="why-do-drives-always-fail-at-the-critical-moments">Why do drives always fail at the critical moments?</h2>
+
+<p>Except I had to worry about drive failure. While migrating the VMs, it suddenly paused for about five seconds, then continued on like nothing had happened. I looked at vCenter, it had no complaints. I looked at the storage server, and one drive’s LED had stopped blinking. <code class="language-plaintext highlighter-rouge">zpool status</code> confirmed my suspicion; a drive had failed enough writes so ZFS took it offline as unavailable, marked the pool as degraded and continued on. This was the momentary pause in the transfer as ZFS recovered from the fault. At that point if another drive failed, catastrophic data loss would’ve occurred, so I had to figure out something to restore the pool.</p>
+
+<p>Looking at the kernel log messages, it seemed as if the drive had lost power from the storage server’s backplane, and afterwards returned functional (under a different drive device of course). Since the drive was offline from ZFS’s point of view, I could be sure ZFS wouldn’t touch it before I tell it to. I ran a short SMART test on it, which didn’t reveal any faults. The drive’s SMART statistics were fine as well, no reallocated sectors or anything such. Of course, it’s a consumer drive and with consumer drives, SMART is at least a week late in its information and is more useful in confirming that an obviously dead drive is dead.</p>
+
+<h2 id="what-not-to-do-when-a-drive-fails">What not to do when a drive fails</h2>
+
+<p>So I decided to do something silly, and replace the drive in the pool with itself. This is a monkey-see-monkey-do kinda situation, it should go without saying that replacing a possibly faulty drive with another faulty drive often doesn’t end well. Except it did in this case, but give it time and it probably fails again. I emptied the drive’s partition table and all  ZFS signatures, since ZFS refuses to use a drive it sees is already a part of another ZFS pool. After telling ZFS to replace the faulty drive with the “new” one, I began the arduous journey of waiting for the resilver to finish. This is also where computers got to shine with their ETAs again, since this process’ ETA began at an hour, dropped down to 20 minutes and then began rising steadily up until the process was done.</p>
+
+<p>And yeah, it did finish succesfully without more errors, all the while the VM migration was taking place. I’d already started migrating live VMs, and at best there were maybe 15 simultaneous migrations. The network handled it well, ZFS handled it well, all’s well that ends well.</p>
+
+<p>I’ve already ordered replacement drives, since there are two identical drives as the faulty one. I also have plans to reconfigure the entire thing, possibly migrate to vSAN if I can get my hands on some SSDs. Yep, it’ll be one more migration process, although that time actually over the ten gigabit network.</p>]]></content><author><name></name></author><category term="homelab" /><summary type="html"><![CDATA[My lab network has a centralised storage server, a Dell R510 with a mismash of drives, running Debian 10 and ZFS. So far it has shared this storage over NFS, but that has turned out to cause issues which is why I opted to change the sharing medium to my lovechild iSCSI.]]></summary></entry><entry><title type="html">Raspberry Pi + Arch Linux ARM + bcache + iSCSI + LVM cache + VDO + KVM + ZFS</title><link href="https://blog.spans.fi/2021/03/22/raspberry-pi-bcache-iscsi-lvm-cache-vdo-kvm-zfs.html" rel="alternate" type="text/html" title="Raspberry Pi + Arch Linux ARM + bcache + iSCSI + LVM cache + VDO + KVM + ZFS" /><published>2021-03-22T14:49:03+00:00</published><updated>2021-03-22T14:49:03+00:00</updated><id>https://blog.spans.fi/2021/03/22/raspberry-pi-bcache-iscsi-lvm-cache-vdo-kvm-zfs</id><content type="html" xml:base="https://blog.spans.fi/2021/03/22/raspberry-pi-bcache-iscsi-lvm-cache-vdo-kvm-zfs.html"><![CDATA[<p>Yep, that’s how mad I’ve got during this lockdown.</p>
+
+<h2 id="what-gave-the-idea">What gave the idea</h2>
+
+<p>About two months ago, an update to the Raspberry Pi OS (ex Raspbian) added Microsoft’s VS Code package repository and its corresponding GPG key to the system. There’s <a href="https://www.reddit.com/r/linux/comments/lbu0t1/microsoft_repo_installed_on_all_raspberry_pis/">discussion about it over at r/linux</a> (tread lightly in the comment section). While I don’t mind Microsoft’s products - I think VS Code is great -, what I do mind is the Raspberry Pi Foundation slowly adding more and more “bloat” to the OS that affect storage capacity, network use and resource consumption in general. They’re turning the Raspberry Pi into a small desktop computer (hell, Raspberry Pi OS is available for standard x86-based desktops), whereas I’m more into the tiny Linux-based embedded ARM computer. Our interests are diverging, so at that point I decided the best course is to pick another OS to run on my… too many Raspberry Pis.</p>
+
+<h2 id="time-to-pick-a-new-os">Time to pick a new OS</h2>
+
+<p>The usual options for a standard Linux distro on ARM are, but not limited to, Ubuntu, Debian, OpenSUSE and Arch. Ubuntu on the server is just… no, and while I’m a fan of bare Debian, the Raspberry Pi OS is still Debian-based itself so it would’ve been quite boring. I’ve never used OpenSUSE, so I’d rather not jump blind into a new environment. That leaves Arch, which while officially doesn’t support ARM, there is a <a href="https://archlinuxarm.org/">third-party port called Arch Linux ARM</a> that is well-supported and active. It has documented support for all the Pis, runs well in them despite the architectural differences, and I’m mad enough to already know Arch well. First step into madness: running Arch on a bunch of Pis.</p>
+
+<h2 id="eugh-sd-cards">eugh. SD cards.</h2>
+
+<p>so. SD cards. I have many (too many?) Raspberry Pis  so I’m not very thrilled about having to get and maintain that many SD cards. They’re not very durable overall, and while the small ones are cheap enough, I don’t feel like going around buying and replacing 16 gig SD cards at minimum. Second step into madness: running the Pis without any onboard storage. I want to have a single machine that contains the boot and root filesystems for each Pi. They’d all boot off their own respective boot filesystems with TFTP, and then mount the root filesystems with NFS.</p>
+
+<h2 id="roots-and-boots">Roots and boots</h2>
+
+<p>I have a repurposed old desktop PC running Proxmox. It has an SSD for storing VMs and a couple of HDDs for bulk storage. It uses ZFS for all these.</p>
+
+<p><em>psst, this covers the KVM + ZFS bit in the title!</em></p>
+
+<p>I created a new CentOS 8 VM in there, which lives in the SSD but has a couple hundred gigabytes of bulk storage from the HDDs. In this bulk storage I created an XFS partition, since it supports <a href="https://prog.world/xfs-reflink-and-fast-clone-made-for-each-other/">reflinking</a> - think filesystem-level deduplication.</p>
+
+<p>Since the bulk storage is going to contain multiple almost identical root and boot filesystems, it only makes sense to use some sort of deduplication. It should achieve large space savings, since each unique block of data is only stored once. Any copies are then just linked to it, so while the filesystems are all separate, a large portion of their data is stored only once. Theoretically, in my situation, it should achieve over 90% space saving.</p>
+
+<p>These boot filesystems are shared over both TFTP and NFS, and the root filesystems over NFS. Simple stuff.</p>
+
+<h2 id="booting-a-pi-off-the-network">Booting a Pi off the network..?</h2>
+
+<p>The network boot scenario is very common in the IT world - if you use x86. Like all booting, network booting happens in the device’s firmware, which is easy enough with an x86 board and BIOS/UEFI. The Raspberry Pi firmware does in fact support network booting. Too bad it’s janky as fuck.</p>
+
+<p>The usual process for network booting a machine off the network is about as follows;</p>
+
+<ol>
+  <li>The firmware initialises itself, then initialises itself a network interface.</li>
+  <li>It gets itself an address with DHCP. In addition to the address information, it gets the address for the network boot server, and possibly the name of the boot file. Otherwise it’ll derive a name for the file based on its network interface’s MAC address.</li>
+  <li>It requests the boot file with TFTP from the boot server. If no boot server was specified, it likely uses the address of the DHCP server.</li>
+  <li>This boot file contains enough information and procedure to continue booting, such as downloading the kernel image from the boot server and possible configuration for it. From this point onwards it’s no different to using a normal local boot filesystem, except of course the filesystem living elsewhere.</li>
+</ol>
+
+<p>But what’s so janky about the Raspberry Pi then? It does support this same process, however it  deviates in steps 2 and 3: it <em>does not use</em> the supplied boot server at all. It always tries to use the DHCP server.</p>
+
+<p>Not really that much of a problem.. if you’re a consumer who read a tutorial online on how to run dnsmasq somewhere, such as another Pi, to replace your consumer router’s crappy DHCP server. My <a href="/6u-desktop-network-rack-build/">setup is a bit beefier however</a>, so replacing the router’s DHCP server with dnsmasq running somewhere really is not an option. Since my router is a Mikrotik, and it runs RouterOS, it has a built-in TFTP server as well. It would work, except the Pi has to be able to update the boot files whenever its bootloader and/or kernel update. With RouterOS it’d probably have to happen with <em>SMB of all things,</em> and I am <em>not</em> updating them by hand. So that’s not an option either.</p>
+
+<p>I toyed around with the idea of separating the Pis into their own little network segment where there would be a separate DHCP server that serves the boot filesystem both over TFTP for when the Pis are booting, and over NFS for when the Pis are booted and have to make changes to them. This would’ve worked well, but then I realised I have a bunch of Pi Zero W’s that don’t support network booting at all. I use the Zero W’s to run some sensors and LED strips - more on that later maybe? There’s no way to bake wireless credentials into the Pi firmware so even if it would manage to initialise the wireless interface, it wouldn’t be able to connect to any network.</p>
+
+<h2 id="fuck-network-booting-then">Fuck network booting then</h2>
+
+<p>So I can’t get away with having an SD card in each Pi. What’s the next best thing though?</p>
+
+<p>Boot the Pis from the SD card normally, but still mount their root filesystems over NFS. This allows the Pis have only teensy SD cards - only big enough to contain the ~500 megabyte boot partition - while their actual root partitions over the network can be a lot larger, 16 gigabytes in my case. I ended up getting some cheap-af eight gigabyte SD cards, since any smaller don’t seem to exist anymore.</p>
+
+<p>Booting Arch with its root in NFS is well-supported in its initcpio tooling, so that bit wasn’t really anything special. What is special, however, is making it work with the wireless Zero W.</p>
+
+<h3 id="wireless-in-the-initial-boot-environment">Wireless in the initial boot environment</h3>
+
+<p>Mounting an NFS filesystem requires a network connection. Having a wireless network connection means initialising the network adapter, and connecting to a wireless network. This means baking the wireless adapter kernel modules, wpa_supplicant, the network credentials and a hook to initialise it all into the initial RAM filesystem. Sounds easy enough!</p>
+
+<p>The Zero W wireless chip requires some kernel modules, and a couple of firmware blobs and configuration files to operate. In an Arch <code class="language-plaintext highlighter-rouge">mkinitcpio.conf</code> file, these would be:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>MODULES=(brcmfmac brcmutil cfg80211 rfkill)
+FILES=(/usr/lib/firmware/brcm/brcmfmac43430-sdio.txt /usr/lib/firmware/brcm/brcmfmac43430-sdio.bin /usr/lib/firmware/brcm/brcmfmac43430-sdio.clm_blob)
+</code></pre></div></div>
+
+<p>The files and modules are the same across distros.</p>
+
+<p>There’s a helpful <a href="https://aur.archlinux.org/packages/mkinitcpio-wifi/">hook package in the AUR</a> that bakes wpa_supplicant and wireless credentials into the init RAM filesystem and runs it with the <code class="language-plaintext highlighter-rouge">wifi</code>-hook. Afterwards, the <a href="https://wiki.archlinux.org/index.php/Mkinitcpio#Using_net"><code class="language-plaintext highlighter-rouge">net</code>-hook can</a> be used to configure the interface with an IP address. There’s a catch in the wireless hook though; in its cleanup stage, it kills the wpa_supplicant daemon, effectively killing the wireless connection. NFS doesn’t like this. A simple workaround for it is to disable the cleanup hook by deleting it completely, adding a <code class="language-plaintext highlighter-rouge">return 1</code> to its first line, or what have you. This’ll leave the wpa_supplicant daemon running, even after the actual system boots.</p>
+
+<p>Since the network adapter comes pre-configured with an address from the init environment, it’s important to tell your network configuration tool to just accept the existence of the existing address. In my case it was a simple <code class="language-plaintext highlighter-rouge">KeepConfiguration=true</code> in systemd-networkd’s interface configuration.</p>
+
+<hr />
+
+<p>Sidenote; leaving processes running isn’t exactly good hygiene for an init RAM environment. Any processes it leaves running won’t be managed by the actual system’s init process, so it’s easy to run into trouble with resource contention or process crashes. But hey, NFS works!</p>
+
+<h2 id="what-about-the-largely-empty-sd-card">What about the largely empty SD card?</h2>
+
+<p>If you recall the post title, so far we’ve got “Raspberry Pi + Arch Linux ARM + NFS + KVM + ZFS”, which is quite far away from the madness still left in there.</p>
+
+<p>Since I’m using eight gigabyte SD cards, about half a gigabyte is for the boot partition and two gigabytes for swap, it still leaves over half of the SD card unused. Good space for some caching, right?</p>
+
+<p>Yeah, except filesystem caching to a dedicated block device is.. well, it’s not really that much of a thing. Linux of course caches filesystem activity into memory, but it won’t touch swap with this cache. The usual thing done with two stacked filesystems is to use an <a href="https://wiki.archlinux.org/index.php/Overlay_filesystem">overlay filesystem</a> with them, but this isn’t quite what I want here. In an overlay filesystem, the underlying filesystem is a read-only “base”, on top of which a read-write filesystem is, well, overlaid. My scenario is to have the NFS filesystem be the read-write base, and the empty space in the SD card used for primarily write caching. No matter which way the overlay filesystem is applied, it wouldn’t achieve this.</p>
+
+<p>But wait, <em>block level</em> caching is much more common! There are standard solutions to it, such as LVM caching and bcache! It’d also mean requiring block-level access to the networked root filesystem - easy enough with iSCSI!</p>
+
+<hr />
+
+<p>Sidenote; anyone who thinks iSCSI is “easy enough” should reconsider their life choices.</p>
+
+<h2 id="rebuild-the-root">Rebuild the root</h2>
+
+<p>Since the scenario changed NFS over to iSCSI, it means rebuilding the method of sharing the root filesystems. I ditched the single XFS filesystem, which also means I lost the deduplication. Not to worry; since I’m using CentOS 8, there’s VDO available out-of-the-box that lets me create a virtual block device with block-level deduplication and compression.</p>
+
+<hr />
+
+<p>Sidenote; ZFS, which I’m using in the hypervisor, also supports both these things. But ZFS is much worse in terms of deduplication - ZFS’s deduplication eats a <em>lot</em> of resources just by existing, so with this hardware it’s not an option. Its block compression is easy and largely transparent though, so I’ve had it active all this time.</p>
+
+<hr />
+
+<p>I created a new VDO device directly into the bulk storage and enabled only deduplication. Since the underlying ZFS is compressed, compressing blocks here wouldn’t have any effect and just waste CPU time. Out of this new VDO device I created an LVM physical volume, and with it a new LVM volume group. Then I had the idea of using the SSD space as caching, since LVM supports that easily as well. Ah well, I’m pretty deep into the madness so why not take a few more steps. Expand the SSD volume a bit, add a new LVM physical volume, stick it into the new volume group.</p>
+
+<p>Into this volume group I created a good bunch of logical volumes, each stored in the HDD and write-cached via the SSD. Into these I created new ext4 partitions and slapped some fresh Arch Linux ARMs in ‘em. And finally, shared them with iSCSI using the newfangled <code class="language-plaintext highlighter-rouge">targetcli</code>.</p>
+
+<p>For mostly laughs, I checked how well the VDO device is deduplicating eight identical filesystems - 97%.</p>
+
+<h2 id="so-booting-off-iscsi-it-is-then">So booting off iSCSI it is then</h2>
+
+<p>Running Arch on an NFS root is easy and well-documented. The same thing but with iSCSI though, not so much. The Arch wiki has an article about it, but at the time it was so terribly written I got physically angry just by reading it. Guess I gotta figure it all out myself then.</p>
+
+<hr />
+
+<p>Sidenote; I’ve since then rewritten the entire article myself based on my experiences with this madness, added some more information to it and just overall made it clearer and conform to the Arch wiki guidelines. <a href="https://wiki.archlinux.org/index.php/ISCSI/Boot">It’s over here.</a></p>
+
+<hr />
+
+<p>The standard iSCSI tooling for Linux is <a href="https://www.open-iscsi.com/">Open-iSCSI</a>. Its userland tools are essentially split into three: <code class="language-plaintext highlighter-rouge">iscsid</code>, <code class="language-plaintext highlighter-rouge">iscsiadm</code> and <code class="language-plaintext highlighter-rouge">iscsistart</code>. The first two are for running and managing iSCSI sessions. The daemon handles the sessions in the kernel and overall keeps them running. <code class="language-plaintext highlighter-rouge">iscsiadm</code> is then used to manage these sessions. The third one, however, is meant to be a one-shot just-get-a-session-open-and-forget-about-it, which is exactly what you do in the init RAM environment when mounting a root partition over iSCSI.</p>
+
+<h3 id="iscsi-initcpio-hook">iSCSI initcpio hook</h3>
+
+<p>Similarly to how wireless was handled earlier, iSCSI is handled with an initcpio hook as well. The hook starts the iSCSI session with some given parameters, then leaves it in the kernel. Later when the actual system boots and the iSCSI daemon starts, it’ll detect this session and “takes it over” for itself, so the session isn’t left unmanaged.</p>
+
+<p>The hook’s installer adds the required kernel modules into the init RAM filesystem image, and the <code class="language-plaintext highlighter-rouge">iscsistart</code> binary. The hook itself simply runs <code class="language-plaintext highlighter-rouge">iscsistart</code> with preset parameters. Since there’s no iSCSI daemon in the init RAM filesystem (and you shouldn’t put one in there anyways), all the parameters have to be baked in to the hook.</p>
+
+<p><code class="language-plaintext highlighter-rouge">/etc/initcpio/install/iscsi</code></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>build ()
+{
+        local mod
+        for mod in iscsi_tcp libiscsi libiscsi_tcp scsi_transport_iscsi crc32c; do
+                add_module "$mod"
+        done
+
+        add_checked_modules "/drivers/net"
+        add_binary iscsistart
+        add_runscript
+}
+
+help ()
+{
+cat &lt;&lt;HELPEOF
+        This hook allows you to boot from an iSCSI target.
+HELPEOF
+}
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">/etc/initcpio/hooks/iscsi</code></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>run_hook ()
+{
+        msg "Mounting iSCSI target"
+        iscsistart -i iqn.2021-03.initiator:name -t iqn.2021-03.target:name -g 1 -a PORTAL_ADDRESS -d 1
+}
+</code></pre></div></div>
+
+<p>And that’s that! A Raspberry Pi running off an iSCSI root! Just ensure it <em>never</em> loses network connectivity, or else demons ensue.</p>
+
+<h2 id="you-forgot-the-sd-card-again">You forgot the SD card again…</h2>
+
+<p>Right, yeah, the SD card is still largely empty. But not to worry, block caching is much easier than filesystem caching! The two options for it here are really LVM caching or <a href="https://wiki.archlinux.org/index.php/Bcache">bcache</a>, so I opted for bcache since I’m already using LVM cache in the iSCSI target system.</p>
+
+<p>Setting up bcache requires constructing a new bcache device out of a backing assumed-slow storage, and a caching assumed-fast storage. I created an empty partition in the SD card, but I had to wipe the filesystem in the iSCSI target in order to put bcache in its place. eh, whatever fine. Once the new bcache device was in place and a new filesystem stuffed into it, booting with it was surprisingly straight-forward. Once the kernel gets the iSCSI device open, the bcache module kicks in and creates the special bcache block device, and the kernel can then use it as a root device.</p>
+
+<h2 id="final-words-before-i-go-completely-mad">Final words before I go completely mad</h2>
+
+<p>Since everyone loves diagrams and pictures and whatnot, here’s a sort-of diagram on how the whole setup is built, not including the KVM host because I couldn’t figure out a nice way to display it. Just take my word there’s an SSD and two HDDs underlying the respective drives.</p>
+
+<p><img src="/assets/2021/03/rpi-iscsi.png" alt="RPi ISCSi layout" /></p>
+
+<p>While this article may seem quite straightforward, all in all this process spanned (pun intended) over a month or so, debugging weird issues and trying to get all the bits and pieces into place. A lot of alcohol was spent. And even now, it’s not perfect. iSCSI over a wireless connection in the init RAM environment isn’t that great of an idea (who would’ve fucking thought?) and just outright doesn’t work. Still haven’t figured out why. I have a hunch it’s about the wireless interface’s MTU though.</p>
+
+<p>Speaking of the init RAM filesystem, and as I mentioned earlier, the wpa_supplicant is left running when the actual system boots which is something I should figure out. Maybe have systemd take it over somehow I dunno? Anyways, these two issues should probably get fixed in one go, since they’re what’s holding me back from running Zero W’s with iSCSI’d and bcache’d roots. But normal Pis work fine!</p>
+
+<h3 id="anything-good-come-out-of-it">Anything good come out of it?</h3>
+
+<p>I admit, all of this was largely for the sake of being able to do it. The whole “bunch of Pis with their roots in one place” is a neat side-effect, but I’ll leave it as an excercise to the reader to figure out if it’s really worth it over just running the Pis normally off their SD cards.</p>
+
+<p>But hey, I did end up rewriting the terrible iSCSI boot article in the Arch wiki, so that’s something!</p>]]></content><author><name></name></author><category term="linux" /><category term="homelab" /><category term="networking" /><summary type="html"><![CDATA[Yep, that’s how mad I’ve got during this lockdown.]]></summary></entry><entry><title type="html">My take on a Raspberry Pi kiosk dashboard</title><link href="https://blog.spans.fi/2021/01/18/my-take-on-a-raspberry-pi-kiosk-dashboard.html" rel="alternate" type="text/html" title="My take on a Raspberry Pi kiosk dashboard" /><published>2021-01-18T18:53:26+00:00</published><updated>2021-01-18T18:53:26+00:00</updated><id>https://blog.spans.fi/2021/01/18/my-take-on-a-raspberry-pi-kiosk-dashboard</id><content type="html" xml:base="https://blog.spans.fi/2021/01/18/my-take-on-a-raspberry-pi-kiosk-dashboard.html"><![CDATA[<p>Like everyone and their mother-in-law, I have a local Grafana instance with a bunch of dashboards filled with graphs and bar gauges about things in my network. I have a <a href="/2021/01/11/6u-desktop-network-rack-build.html">desktop network rack</a> with space on the top for a spare 24” monitor I have, so I thought I’d make a “24/7” Grafana kiosk display on it with a Raspberry Pi.</p>
+
+<p>I’ll be using standard Xorg and Chromium, and X11VNC for remote control. They’ll all be controlled and ran with systemd user-units for the <code class="language-plaintext highlighter-rouge">pi</code> user. My reason for the separate services is that many other guides online for a similar kiosk run Xorg and Chromium directly from <code class="language-plaintext highlighter-rouge">.bashrc</code> or the like, which wouldn’t allow restarting Chromium itself very easily, which is essential especially during testing the setup. Using separate services for Xorg and Chromium lets me restart either at will without having to reboot the entire Pi.</p>
+
+<h2 id="the-hardware">The hardware</h2>
+
+<p>Super simple stuff. As hinted by the network rack build post, there’s a Raspberry Pi model 3B in the rack, powered via Power-over-Ethernet. This Pi has been a sort-of catch-all for miscellanous things I’ve done, so this time it gets to run the kiosk. The monitor I’m using is some Asus 24” 1080P-monitor with an HDMI input, which I’ve place on top of the network rack and connected to the Pi via HDMI.</p>
+
+<h2 id="the-software">The software</h2>
+
+<p>The interesting bit. I started off with a stock Raspberry Pi OS Lite and set up some basics with the <code class="language-plaintext highlighter-rouge">raspi-config</code> tool. Most importantly, I enabled SSH and console autologin. I left its VNC out, since it installs RealVNC which is a bit much for this need. I’ll be setting up X11VNC later on. I installed Xorg, Chromium and some accompanying software in order to get the dashboard displayed first and foremost.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># apt install chromium-browser openbox unclutter xserver-xorg xinit x11-xserver-utils x11vnc
+</code></pre></div></div>
+
+<h3 id="dashboard-pre-requisites">Dashboard pre-requisites</h3>
+
+<p>Sourcing from a bunch of places online, I scratched together a pre-script that sets up some things for Xorg and Chromium.</p>
+
+<p><code class="language-plaintext highlighter-rouge">~/dashboard-pre.sh</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>#!/bin/bash
+sleep 1
+xset -dpms
+xset s off
+xset s noblank
+
+sed -i 's/"exited_cleanly":false/"exited_cleanly":true/' /home/pi/.config/chromium/Default/Preferences
+sed -i 's/"exit_type":"Crashed"/"exit_type":"Normal"/' /home/pi/.config/chromium/Default/Preferences
+unclutter &amp;
+</code></pre></div></div>
+
+<p>In my testing I found that the upcoming systemd unit would run too soon after Xorg had started, so the <code class="language-plaintext highlighter-rouge">xset</code> commands would freeze. I’m unsure if I could fix the service itself, but a simple one second sleep did the trick here.</p>
+
+<p>Then, the services to run after the user logs in, which happens automatically since I previously set the console to autologin to the <code class="language-plaintext highlighter-rouge">pi</code> user.</p>
+
+<h3 id="xorg-services">Xorg services</h3>
+
+<p>Xorg requires a service and a socket definition.</p>
+
+<p><code class="language-plaintext highlighter-rouge">~/.config/systemd/user/xorg@.socket</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[Unit]
+Description=Socket for xorg at display %i
+
+[Socket]
+ListenStream=/tmp/.X11-unix/X%i
+
+[Install]
+WantedBy=default.target
+</code></pre></div></div>
+
+<p>This socket is responsible for maintaining a communication socket for any Xorg instances, as denoted by the systemd unit index <code class="language-plaintext highlighter-rouge">%i</code> which represents the display number. The <code class="language-plaintext highlighter-rouge">:0</code> display is <code class="language-plaintext highlighter-rouge">xorg@0.socket</code> and so on. Since this is a socket service, when any communication comes into the socket, systemd will automatically start the corresponding service.</p>
+
+<p><code class="language-plaintext highlighter-rouge">~/.config/systemd/user/xorg@.service</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[Unit]
+Description=Xorg server at display %i
+Requires=xorg@%i.socket
+After=xorg@%i.socket
+
+[Service]
+Type=simple
+SuccessExitStatus=0 1
+ExecStart=/usr/bin/startx -- :%i
+</code></pre></div></div>
+
+<p>The actual service for Xorg is simple (pun intended). It has display indexing just like the socket, and requires its corresponding socket to be running before it can run itself. It simply calls <code class="language-plaintext highlighter-rouge">startx</code> with the configured display number, which in turn runs Openbox, the window manager. This service does <em>not</em> have an <code class="language-plaintext highlighter-rouge">[Install]</code> section, since the socket is responsible for starting the service, instead of the service starting itself when the user logs in.</p>
+
+<h3 id="dashboard-service">Dashboard service</h3>
+
+<p>Just Xorg and Openbox by themselves won’t get anything on the screen, so next up is the service for the Chromium kiosk itself.</p>
+
+<p><code class="language-plaintext highlighter-rouge">~/.config/systemd/user/dashboard.service</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[Unit]
+Description=Grafana dashboard
+After=xorg@0.service
+Requires=xorg@0.service
+
+[Service]
+Environment=DISPLAY=:0.0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+Type=simple
+ExecStartPre=/home/pi/dashboard-pre.sh
+ExecStart=/usr/bin/chromium-browser --kiosk --incognito --window-position=0,0 --noerrdialogs --disable-infobars "http://grafana.lan:3000/playlists/play/1?kiosk"
+Restart=on-abort
+
+[Install]
+WantedBy=default.target
+</code></pre></div></div>
+
+<p>A bit more complex. Like Xorg depends on its socket, this service depends on Xorg running at display 0 (thus <code class="language-plaintext highlighter-rouge">xorg@0.service</code>). The service sets the environment variables required for applications running on Xorg, runs the <code class="language-plaintext highlighter-rouge">dashboard-pre.sh</code> script from before as a pre-run and actually runs Chromium with the appropriate parameters for running it as a kiosk. The final parameter specifies which site it’ll open, which in this case is the local Grafana instance and a playlist within it.</p>
+
+<p>The dashboard itself is now ready to run with systemctl.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ systemctl --user daemon-reload
+$ systemctl --user enable --now xorg@0.socket
+$ systemctl --user enable --now dashboard.service
+</code></pre></div></div>
+
+<p>As explained earlier, only the socket for the Xorg server at display 0 is enabled and started, and the dashboard is started as well. This runs Xorg and opens Chromium on the display connected to the Pi, which opens the Grafana playlist automatically.</p>
+
+<h3 id="x11vnc">X11VNC</h3>
+
+<p>X11VNC is set up in a similar manner with a user systemd service. To be just that one tiny bit more secure (and to stop X11VNC from nagging about it), I created a VNC password for myself with <code class="language-plaintext highlighter-rouge">x11vnc -storepasswd</code>. Then the service.</p>
+
+<p><code class="language-plaintext highlighter-rouge">~/.config/systemd/user/x11vnc.service</code>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[Unit]
+Description=X11VNC server
+After=xorg@0.service
+Requires=xorg@0.service
+
+[Service]
+Environment=DISPLAY=:0.0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+ExecStart=/usr/bin/x11vnc -usepw -display $DISPLAY -forever -ncache 10
+
+[Install]
+WantedBy=default.target
+</code></pre></div></div>
+
+<p>Just like the dashboard service, this service depends on the Xorg server service running on display 0. It also sets the required environment variables, and runs X11VNC on the configured display. Importantly it uses the <code class="language-plaintext highlighter-rouge">-forever</code> option, which keeps it running after a connected client disconnects. Normally it’d shut down, which isn’t what I want.</p>
+
+<p>Much like the other services, it too is set to run on user login.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ systemctl --user daemon-reload
+$ systemctl --user enable --now x11vnc.service
+</code></pre></div></div>
+
+<h2 id="final-words">Final words</h2>
+
+<p>If everything works correct, the Pi should be safe to reboot and it’ll automatically log in after booting, run Xorg and open Chromium to the Grafana dashboard playlist.</p>
+
+<p><img src="/assets/2021/01/Screenshot-from-2021-01-18-19-31-18.png" alt="The final dashboard, as seen via VNC" /></p>
+
+<p>If you’re interested, my two Pis run PowerDNS Recursor with a custom tool I developed called <a href="https://github.com/Spanfile/Singularity">Singularity</a>, which configures Recursor to reply with a null route to known malicious domains. I’ve <a href="/2020/11/15/i-thought-pihole-was-kinda-bad-so-i-made-my-own.html">written about it here</a>. The tool exports a <code class="language-plaintext highlighter-rouge">blocked-domains</code> stat among the other Recursor stats, which the DNS dashboard displays.</p>]]></content><author><name></name></author><category term="homelab" /><category term="linux" /><summary type="html"><![CDATA[Like everyone and their mother-in-law, I have a local Grafana instance with a bunch of dashboards filled with graphs and bar gauges about things in my network. I have a desktop network rack with space on the top for a spare 24” monitor I have, so I thought I’d make a “24/7” Grafana kiosk display on it with a Raspberry Pi.]]></summary></entry><entry><title type="html">6U desktop network rack build</title><link href="https://blog.spans.fi/2021/01/11/6u-desktop-network-rack-build.html" rel="alternate" type="text/html" title="6U desktop network rack build" /><published>2021-01-11T18:31:19+00:00</published><updated>2021-01-11T18:31:19+00:00</updated><id>https://blog.spans.fi/2021/01/11/6u-desktop-network-rack-build</id><content type="html" xml:base="https://blog.spans.fi/2021/01/11/6u-desktop-network-rack-build.html"><![CDATA[<p>My “core” LAN network consists of two rackmounted switches and a router. After moving into a new apartment, I didn’t want to keep them in a zero-ventilation closet on the other side of the apartment, so I thought I’d put my massive desk to good use and build a small rack to stick the network gear in, and keep it on my desk for ease of use and good ventilation.</p>
+
+<p><img src="/assets/2021/01/desktop-rack.jpg" alt="The finished rack" /></p>
+
+<h2 id="the-components">The components</h2>
+
+<p>The pre-existing network components are:</p>
+
+<ul>
+  <li><a href="https://mikrotik.com/product/crs112_8p_4s_in">Mikrotik CRS112-8P-4S-IN</a>, primarily used for its 802.3af/at Power-over-Ethernet output capabilities. It is used to power a wireless access point, the router and three Raspberry Pi’s.</li>
+  <li><a href="https://mikrotik.com/product/hex_s">Mikrotik hEX S</a>, the router. It’s powered purely with 802.3af/at PoE from the switch to avoid using a socket unnecessarily.</li>
+  <li><a href="https://www.tp-link.com/us/business-networking/smart-switch/t1700g-28tq/">TP-Link T1700G-28TQ</a>, just for the ports. Every port in the CRS112 are used up, so this thing lets me have free ports for when I need ‘em. It also has four SFP+-cages - I’m not currently using them, but I’m considering connecting my desktop and lab to the switch with fiber for a 10 gigabit connection to my network storage.</li>
+</ul>
+
+<p>The new stuff to complete the build are:</p>
+
+<ul>
+  <li>A <a href="https://www.amazon.de/gp/product/B004C0V29W">DIGITUS keystone patch panel</a>. Whatever cables I pull to the rack will go into this patch panel, and from there into either switch with some quarter-meter patch cables. <em>Edit 31/05/21</em>: the keystones I got are crap.</li>
+  <li>A <a href="https://www.thomann.de/gb/varytec_power_distribution_panel_8x_sc.htm">Varytec power distributor</a> to plug things into. I chose this one since it has plenty of ports - eight - and a power switch on the front. Many others I found had the switch on the other side to the ports, which wouldn’t fit me.</li>
+  <li>A 1U <a href="https://www.thomann.de/gb/thon_rackwanne_1he.htm">Thon rack shelf</a> to mount the power supply for the CRS112, and possibly some other things in the future.</li>
+  <li>And finally, a <a href="https://www.thomann.de/gb/millenium_steel_box_6.htm">Millenium Steel Box 6</a> 6U rack to house everything in. It’s 300mm deep, which is enough to fit everything I want and shallow enough to fit neatly on my desk. It also has square holes for cage nuts, which is ideal.</li>
+</ul>
+
+<h2 id="the-build">The build</h2>
+
+<p>I had some pre-existing cage nuts and screws to mount everything in the rack with. I ended up laying out the devices in order from top to bottom;</p>
+
+<ul>
+  <li>shelf</li>
+  <li>power distributor</li>
+  <li>T1700G</li>
+  <li>patch panel</li>
+  <li>CRS112</li>
+  <li>empty</li>
+</ul>
+
+<p>I might experiment with moving the power distributor to the second-to-bottom slot, routing the power cables underneath it and moving everything up one slot, so whatever ‘auxiliary’ devices I plug into the power distributor wouldn’t droop in front of the switches.</p>
+
+<p>The router and Raspberry Pi’s are plugged directly into the back side of the patch panel. I use some Chinese PoE-splitters to power the Pis. Two of them are 3B+’s, one is a 3B. The PoE-splitters allow for only 100Mbit links instead of gigabit, but the Pis wouldn’t use gigabit anyways. The 3B uses a 100Mbit link anyways, and while the plus-models negotiate a gigabit link, they still run Ethernet over the USB2 bus so it’s limited to around 300Mbit in practice. Dropping that down to 100Mbit doesn’t really matter for my use.</p>
+
+<p>The router, however, does do both gigabit links and active PoE, just like the 802.3af/at standard allows. It’s plugged into two ports on the switch, the other one being a VLAN trunk port and the other a VLAN access port. Via the trunk, it gets access to WAN and to a transit network into a separate lab network (outside the scope of this post, sorry). The access port is just for the local LAN. It behaves kind-of like a router-on-a-stick setup.</p>
+
+<p>The PoE devices are just laying around behind the switches, which isn’t very ideal nor clean. I’m planning of getting some cases for the Pis I could mount to the shelf on the top to protect them from accidental short circuits, and to hold them in place. Right now they’re just floating on top of the cables to isolate them from each other and the metal rack case. Fun fact; you can kill a Pi 3 by shorting its 5V rail to its 3.3V rail while its powered. This is easily done accidentally, since the GPIO header has both a 5V pin and 3.3V pin right next to each other on the top side. I originally had four 3B+’s, but two of them have died, likely due to this issue. I don’t want the last two to die by shorting them to the metal rack case or something such.</p>
+
+<p>The link between the CRS112 and the T1700G-28TQ is via the patch panel to avoid “jumping” a cable over the patch panel, which makes for cleaner cabling.</p>
+
+<p>The CRS112 comes with optional rackmount brackets I had to dig out from underneath a pile of boxes, but I found ‘em and screwed ‘em on. The device has two power DC power ports, one for 18-28V and one for 48-57V. If you plug power into the higher voltage one, it’ll allow the device to output 802.3at (sometimes called “PoE+”). The Raspberry Pi PoE-splitters require 802.3at, so I’m using a 48V 3A power supply. I’ve zip-tied it to the shelf on the topmost position. I measured its output and it’s actually half a volt shy of 48V, but the PSE in the CRS112 doesn’t seem to mind. It’s outputting a nice 49V on each PoE port.</p>
+
+<p>The keystones fit into the patch panel just fine, but they’re a bit fragile and some fit the cable on either end very tightly. I’ve already had a mounting tab break off one keystone, so it’s sort-of loosely held in place by the cables on both ends. They likely won’t tolerate being attached and detached often, but then again they’re not supposed to be moved around that much.</p>
+
+<p>I grabbed some small rubber feet from the hardware store to stick to the bottom of the rack to stop it sliding around so easily.</p>
+
+<h2 id="the-future">The future</h2>
+
+<p>Temperatures in the rack seem fine, albeit a bit high. The 48V (well, 47.5V) power supply for the CRS112 gets quite warm, but not so hot I couldn’t hold my hand on it. Both the CRS112 and the T1700G are passively cooled, so I’m assuming they’re fine not having any active cooling. To the touch they’re a bit too warm for comfort in my opinion, though. I have a couple of 40mm Noctua fans laying around, so I might try and mount a fan into one or both devices, assuming I can get 12V power from somewhere. I’ve been inside the CRS112 once already, and it does have three solder pads labeled “FAN”. Unfortunately they don’t seem to be active, so I’ll have to figure out some other way to get 12V out. I don’t know what’s the deal inside the T1700G, but I’ll figure something out if need be.</p>
+
+<p>The patch panel still has another 12 ports free, and the T1700G has almost all its ports free, so there’s plenty space for future port needs. I’m thinking of getting a small 1U server to mount in the last free space in the rack that could host some local storage. It’d have to be pretty shallow for a server though, since the rack has only 300mm of clearance.</p>]]></content><author><name></name></author><category term="networking" /><category term="homelab" /><summary type="html"><![CDATA[My “core” LAN network consists of two rackmounted switches and a router. After moving into a new apartment, I didn’t want to keep them in a zero-ventilation closet on the other side of the apartment, so I thought I’d put my massive desk to good use and build a small rack to stick the network gear in, and keep it on my desk for ease of use and good ventilation.]]></summary></entry><entry><title type="html">I thought PiHole was kinda bad so I made my own</title><link href="https://blog.spans.fi/2020/11/15/i-thought-pihole-was-kinda-bad-so-i-made-my-own.html" rel="alternate" type="text/html" title="I thought PiHole was kinda bad so I made my own" /><published>2020-11-15T10:52:39+00:00</published><updated>2020-11-15T10:52:39+00:00</updated><id>https://blog.spans.fi/2020/11/15/i-thought-pihole-was-kinda-bad-so-i-made-my-own</id><content type="html" xml:base="https://blog.spans.fi/2020/11/15/i-thought-pihole-was-kinda-bad-so-i-made-my-own.html"><![CDATA[<p>TL;DR: it’s a Rust binary called <a href="https://crates.io/crates/singularity">Singularity</a> (because of the gravity lists, domain blackholing? it sounds cool don’t judge). You give it sources for malicious domains and it outputs a Lua script that the PowerDNS Recursor uses to automatically respond with a null route (<code class="language-plaintext highlighter-rouge">0.0.0.0</code>) to all the malicious domains. No web UIs (SSH is enough), no <code class="language-plaintext highlighter-rouge">dnsmasq</code>, no system-overtaking installers, just a program that outputs a single file.</p>
+
+<h1 id="whats-this-about-pihole">What’s this about PiHole?</h1>
+
+<p>I wanted network-wide ad blocking (and other known malicious domain blocking), which by now is arguably synonymous with <a href="https://pi-hole.net/">PiHole</a>. It’s fine for everyday users, you just buy a Raspberry Pi, run one command and you’re done. But I’m not an everyday user, so the amount of things it does and the amount of assumptions it makes aren’t a great fit for my use.</p>
+
+<ul>
+  <li>The installer “overtakes” the system it’s being installed into and heavily assumes it’s a Pi. Sure, yeah, the name has “Pi” in it but they’re <a href="https://docs.pi-hole.net/main/prerequisites/#supported-operating-systems">officially supporting a bunch of others</a> as well.</li>
+  <li>It wants to use a static address with <code class="language-plaintext highlighter-rouge">dhcpcd</code>. Sure, a Pi comes preinstalled with it. <em>But</em>, <a href="https://docs.pi-hole.net/main/prerequisites/#ip-addressing">they automatically install <code class="language-plaintext highlighter-rouge">dhcpcd</code> just to make sure it’s there</a>, which <em>will</em> cause conflicts with literally any other network management system. Again, a terrible thing for it do on anything but a Pi.</li>
+  <li>One is none and two is one. DNS is built to be redundant, which in the case of local resolvers means running two of ‘em (it’s why all network configuration allow specifying two or more DNS resolvers). PiHole doesn’t have anything to support running two (or more) of them in parallel, so two of them side-by-side are entirely separated from one another. It’d be quite cool if the fancypants web interface could aggregate statistics from both of ‘em.</li>
+  <li>They make modifying the <code class="language-plaintext highlighter-rouge">dnsmasq</code> conf- wait, no, they call it “FTL”, which… eugh.</li>
+  <li>They use their own fork of <code class="language-plaintext highlighter-rouge">dnsmasq</code> they call “FTL DNS” that lets them do blackholing more efficiently. They also market it as being <a href="https://docs.pi-hole.net/ftldns/">blazing fast</a>, and damn I sure hope so. It’d be pretty terrible if they’d managed to make their “faster than light” fork of <code class="language-plaintext highlighter-rouge">dnsmasq</code> slower than <code class="language-plaintext highlighter-rouge">dnsmasq</code> itself, which is already pretty fucking fast to begin with.</li>
+  <li>They make modifying the actual <code class="language-plaintext highlighter-rouge">dnsmasq</code> configuration awkward, which is to say they don’t really want you doing it at all.</li>
+</ul>
+
+<p>So I didn’t like PiHole for the short time I used it, so I thought I’d make my own.</p>
+
+<h1 id="enter-pdns">Enter PDNS</h1>
+
+<p><a href="https://www.powerdns.com/recursor.html">PowerDNS Recursor</a> is the high-end, easy-to-use, powerful-to-dig-into (pun intended) DNS recursor. It runs everywhere, and ‘everywhere’ includes a Pi. It offers a <a href="https://doc.powerdns.com/recursor/lua-scripting/index.html">Lua scripting interface</a> that lets you program custom logic for responding to queries, such as responding with a <code class="language-plaintext highlighter-rouge">0.0.0.0</code> to queries for names specified in a list of malicious domains. Which is exactly what I made it do.</p>
+
+<h2 id="the-lua-interface">The Lua interface</h2>
+
+<p>The Lua interface Recursor exposes has a <a href="https://doc.powerdns.com/recursor/lua-scripting/hooks.html#preresolve"><code class="language-plaintext highlighter-rouge">preresolve()</code> function</a> that “is called before any DNS resolution is attempted, and if this function indicates it, it can supply a direct answer to the DNS query, overriding the internet”. The interface also has so-called <a href="https://doc.powerdns.com/recursor/lua-scripting/dnsname.html#dns-suffix-match-groups">“DNS suffix match groups”</a> that let you specify a collection of DNS names, and later match a given FQDN if it’s equal to, or is a subdomain of any names in the collection (so if the collection has <code class="language-plaintext highlighter-rouge">spans.me</code>, in it, the name <code class="language-plaintext highlighter-rouge">blog.spans.me</code> would match). This kind of suffix match group used in the <code class="language-plaintext highlighter-rouge">preresolve()</code> function is how the blocking is done.</p>
+
+<h2 id="how-the-blocking-is-done">How the blocking is done</h2>
+
+<p>We begin by specifying the malicious domain suffix match group and adding the unwanted domains. In Singularity’s final output, this collection is <em>large</em> (but that’s fine)<em>.</em></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>b = newDS()
+b:add{"malicious.domain", "facebook.com"}
+</code></pre></div></div>
+
+<p>Then, create the <code class="language-plaintext highlighter-rouge">preresolve()</code> function that returns a null route to all domains matched in the suffix group.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>function preresolve(q)
+    -- if the queried name is in the suffix rgoup
+    if b:check(q.qname) then
+        -- since we're responding with an IPv4 address, respond only to A-queries
+        if q.qtype==pdns.A then
+            -- answer with an A-record pointing to the null route
+            q:addAnswer(pdns.A, "0.0.0.0")
+            -- tell Recursor we've handled this query and exit
+            return true
+        end
+    end
+    -- our matching didn't catch a malicious domain, tell Recursor we haven't touched this query and let it do it's thing
+    return false
+end
+</code></pre></div></div>
+
+<p>Then… that’s it. This script can then be saved somewhere and configured for Recursor’s use with the <a href="https://doc.powerdns.com/recursor/settings.html?highlight=lua%20dns%20script#lua-dns-script"><code class="language-plaintext highlighter-rouge">lua-dns-script</code> config setting</a>. Now it’s just a matter of maintaining the suffix match group, which is where Singularity steps in.</p>
+
+<h1 id="blackholing-domains-with-singularity">Blackholing domains with Singularity</h1>
+
+<p>In its essence, <a href="https://crates.io/crates/singularity">Singularity</a> reads known malicious domains from an URL, that can be either an HTTP/HTTPS URL, or a <code class="language-plaintext highlighter-rouge">file</code> URL for local files. It can read either <a href="https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"><code class="language-plaintext highlighter-rouge">hosts</code>-formatted domains</a> (same format as in <code class="language-plaintext highlighter-rouge">/etc/hosts</code>, so <code class="language-plaintext highlighter-rouge">0.0.0.0 malicious.domain</code>) or just <a href="https://mirror1.malwaredomains.com/files/justdomains">plain domains, one-per-line</a>. It collects all the domains from the lists it’s given, and finally outputs a complete Lua script as shown above. It can also output an <code class="language-plaintext highlighter-rouge">/etc/hosts</code>-style file, so it can be used anywhere where <code class="language-plaintext highlighter-rouge">/etc/hosts</code> can be used… which is everywhere really.</p>
+
+<p>Its configuration allows specifying any combination of adlist inputs, and any combination of outputs. There’s a couple of options per-input and per-output, which lets it be somewhat flexible in terms of what the input and outputs exactly contain.</p>
+
+<h2 id="how-i-use-it">How I use it</h2>
+
+<p>In my Pi, I have PDNS Recursor running with a simple configuration:</p>
+
+<figure class="kg-card kg-code-card"><pre><code>config-dir=/etc/powerdns
+include-dir=/etc/powerdns/recursor.d
+
+allow-from=127.0.0.0/8, 10.0.0.0/8, 100.64.0.0/10, 169.254.0.0/16, 192.168.0.0/16, 172.16.0.0/12, ::1/128, fc00::/7, fe80::/10
+local-address=0.0.0.0
+local-port=553
+
+forward-zones-file=/etc/powerdns/forward-zones
+export-etc-hosts=/etc/powerdns/lan-hosts
+export-etc-hosts-search-suffix=lan
+lua-dns-script=/etc/powerdns/blackhole.lua
+
+lua-config-file=/etc/powerdns/recursor.lua
+hint-file=/usr/share/dns/root.hints
+quiet=yes
+security-poll-suffix=
+setgid=pdns
+setuid=pdns</code></pre>
+<figcaption>/etc/powerdns/recursor.conf</figcaption></figure>
+
+<p>The <code class="language-plaintext highlighter-rouge">lua-dns-script</code> is the important bit. Singularity is configured to output its Lua script to that specified location. Its configuration looks as such:</p>
+
+<figure class="kg-card kg-code-card"><pre><code>[[adlist]]
+source = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+
+[[adlist]]
+format = "domains"
+source = "https://mirror1.malwaredomains.com/files/justdomains"
+
+[[output]]
+destination = "/etc/powerdns/blackhole.lua"
+type = "pdns-lua"</code></pre>
+<figcaption>$HOME/.config/singularity/singularity.toml</figcaption></figure>
+
+<p>Super simple; two adlists are specified, one in the <code class="language-plaintext highlighter-rouge">hosts</code>-format and the other in <code class="language-plaintext highlighter-rouge">domains</code>-format. One output is specified for the Lua script Recursor uses. Running Singularity with <code class="language-plaintext highlighter-rouge">sudo</code> (writing to the script’s location requires root here):</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ sudo -E ./singularity
+INFO Reading adlist from https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts...
+INFO Reading adlist from https://mirror1.malwaredomains.com/files/justdomains...
+WARN While reading https://mirror1.malwaredomains.com/files/justdomains, line #26407 ("") was parsed into an empty entry, so it was ignored
+INFO Read 84 671 domains from 2 source(s)
+</code></pre></div></div>
+
+<p>While running, it shows pretty progress bars for… progress. That one warning there is the result of a funny bug it had; if a line in the <code class="language-plaintext highlighter-rouge">domains</code>-format was empty, it’d be parsed as the catch-all <code class="language-plaintext highlighter-rouge">.</code> entry, which would match every domain, which meant blocking everything. Now such entries are ignored, and blocking works fine.</p>
+
+<p>Now that Singularity has done its thing, Recursor can either be restarted or told to reload the Lua script with <code class="language-plaintext highlighter-rouge">sudo rec_control reload-lua-script</code>, and that’s that. Recursor can be queried for names normally, except it’ll return a <code class="language-plaintext highlighter-rouge">0.0.0.0</code> for everything malicious.</p>
+
+<p>Getting Singularity automatically run every once in a while is easily done with standard tools like <code class="language-plaintext highlighter-rouge">cron</code> or <code class="language-plaintext highlighter-rouge">systemd</code> timers.</p>
+
+<h3 id="but-wait-why-does-the-recursor-config-have-local-port553">“But wait, why does the Recursor config have local-port=553?”</h3>
+
+<p>Good question! Remember when I said “one is none and two is one”? I have two of these Pis running Recursor + Singularity, and on both there’s <code class="language-plaintext highlighter-rouge">dnsdist</code>, PowerDNS’s DNS load balancer software. <code class="language-plaintext highlighter-rouge">dnsdist</code> is the one listening on 53 on both Pis, and will forward queries to both the local Recursor and the opposing one from both.</p>
+
+<figure class="kg-card kg-code-card"><pre><code>newServer("192.168.0.3:553")
+newServer("127.0.0.1:553")
+setLocal("0.0.0.0")</code></pre>
+<figcaption>/etc/dnsdist/dnsdist.conf</figcaption></figure>
+
+<p>Then for all my network clients, I have both Pis set as nameservers, so there’s redundancy and load balancing going on.</p>
+
+<h2 id="but-is-it-blazing-fast-or-faster-than-light">But is it “blazing fast” or “faster than light”?</h2>
+
+<p>I dunno, I’m not well-versed with marketing jargon ¯_(ツ)_/¯</p>
+
+<p>It works fine for my use, and I haven’t noticed it being significantly slower than just normal recursion. Recursor seems to support pre-compiled Lua scripts that might speed up the resolving override, but I haven’t tried that out yet.</p>
+
+<h2 id="what-about-the-fancy-web-ui-or-metrics">What about the fancy web UI? Or metrics?</h2>
+
+<p>I don’t care for web UIs for my DNS resolvers, I have SSH. Recursor’s Lua scripts <a href="https://doc.powerdns.com/recursor/lua-scripting/statistics.html#generating-metrics">support outputting metrics</a> which I’m using to output a metric called “blocked-queries” that ends up among all the other metrics Recursor outputs. It is incremented for each blocked query.</p>
+
+<p>Other than that, since it’s just Recursor and dnsdist running, they can be monitored with whatever supports monitoring them. Go wild.</p>]]></content><author><name></name></author><category term="networking" /><category term="linux" /><summary type="html"><![CDATA[TL;DR: it’s a Rust binary called Singularity (because of the gravity lists, domain blackholing? it sounds cool don’t judge). You give it sources for malicious domains and it outputs a Lua script that the PowerDNS Recursor uses to automatically respond with a null route (0.0.0.0) to all the malicious domains. No web UIs (SSH is enough), no dnsmasq, no system-overtaking installers, just a program that outputs a single file.]]></summary></entry><entry><title type="html">Why your port-forward doesn’t work</title><link href="https://blog.spans.fi/2020/09/13/why-your-port-forward-doesnt-work.html" rel="alternate" type="text/html" title="Why your port-forward doesn’t work" /><published>2020-09-13T21:40:17+00:00</published><updated>2020-09-13T21:40:17+00:00</updated><id>https://blog.spans.fi/2020/09/13/why-your-port-forward-doesnt-work</id><content type="html" xml:base="https://blog.spans.fi/2020/09/13/why-your-port-forward-doesnt-work.html"><![CDATA[<p>There’s a million and then some guides online that tell you how to set up a port-forward in your home router box, but what about when the forward doesn’t actually work? In this post I’ve collected the common reasons why after a port-forward you still can’t get your friend to connect to your cool Minecraft server (or for that matter, any online service behind your router box), and what you may be able to do about it.</p>
+
+<p>I’ll assume the port-forward is done correctly; the rules are correct, the addresses are fine, and that the service accepts incoming connections just fine.</p>
+
+<h2 id="reason-1-isp-traffic-restrictions">Reason #1: ISP traffic restrictions</h2>
+
+<p>The simple way to model your home network is as such:</p>
+
+<p><img src="/assets/2020/08/port-forward-1.png" alt="Simple home network diagram" /></p>
+
+<p>That cloud there is the Internet (through your ISP), then you got your router box to which all your devices are connected. In this scenario your router is plugged “directly” into the Internet and thus, is assigned an external address from the public address space (whether its v4 or v6 addresses).</p>
+
+<p>To confirm the topology really is as described here, take note of your router’s assigned external address. Then lookup “what is my ip” and the search engine (or its first result) tells you your publicly visible address - the address your connections are coming from and from which returning traffic gets back to you. If this address and your router’s external address are the same, your network really looks like this one. If not, skip ahead to reason #2.</p>
+
+<p>Given it has a public external address, anyone also connected to the Internet can send traffic to that address and it’ll reach your router. Probably. It has to go through your ISP first of course, and they might not just let anything through.</p>
+
+<p>From an ISP’s point of view, home networks aren’t meant to run any public services, because otherwise it’d count as a business and the ISP could bill you a <em>lot</em> more for a business connection. Thus, since there’s no need to allow any new connections in, they just outright block it all. But in today’s world, having publicly accessible services doesn’t mean you’re hosting something. It could be VoIP, a game you play with friends, and so on. And so, ISPs do let connections in, but with some usual restrictions.</p>
+
+<h3 id="restriction-1-block-spammy-services">Restriction #1: block “spammy” services</h3>
+
+<p>A large portion of the Internet’s traffic is email, and a <strong>large</strong> portion of that is spam email. Consumer ISPs alleviate this issue by not allowing your network send or receive email directly with SMTP, thus blocking the ports 25, 465 and 587 on both directions. Your ISP might offer an SMTP relay, through which you can send and (maybe) receive email. So if you’re trying to self-host email in your network, your ISP is aware how tremendously bad of an idea it is and doesn’t let you use it in the first place.</p>
+
+<h3 id="restriction-2-block-non-standard-ports">Restriction #2: block non-standard ports</h3>
+
+<p>For one reason or another, your ISP could be blocking ports that aren’t widely associated with any known service. This basically means you can only get SSH in to port 22, HTTPS to 443 and so on. If you’re using a non-standard port for your service, try its standard port.</p>
+
+<h3 id="restriction-3-block-standard-port">Restriction #3: block standard port</h3>
+
+<p>This is the opposite to the above. Instead of allowing services only in their standard ports, your ISP could <em>block</em> them on their standard ports. It’s kind of a good thing really; not having your SSH on 22 reduces the chance of an automated bot getting in when it can’t quickly find you in the first place. Try some other port that isn’t the service’s standard port.</p>
+
+<h2 id="reason-2-double-nat-or-cgnat">Reason #2: double-NAT or CGNAT</h2>
+
+<p>Remember that network diagram from earlier? And the external address checking? It’s very likely your network doesn’t look like that, but instead looks like:</p>
+
+<p><img src="/assets/2020/08/port-forward-2.png" alt="Much more realistic network diagram" /></p>
+
+<p>The box on the left there is your ISP, from which you get to the Internet (the cloud). Now, instead of your router being plugged “directly” to the Internet, your ISP has another router doing NAT in between, in the same manner as your router does NAT. This is known as double-NAT or CGNAT (Carrier Grade NAT). The reason your ISP does this is because of IPv4 address space exhaustion. In the grand scheme of things there aren’t that many v4 addresses, and they’ve all been allocated to some entities for years now. Effectively it means we’ve ran out of addresses.</p>
+
+<p>What ISPs do to help with this issue is stick multiple customers behind a router that adds a layer of NAT. This allows the ISP to have hundreds (if not thousands) of customers behind just one public v4 address, instead of assigning each customer their own address (the previous scenario). This, however, means that there’s no way you can get any new traffic into your network. None. Here, your router’s external address is just some private address in your ISP’s double-NAT’ed network, and your publicly visible address is that of the router’s doing the double-NAT. Just like your router doing port-forwarding, in order for the new connections to reach you, they’d have to get through your ISP’s double-NAT’ing router which you have no control over. And no, your ISP is not going to add a port-forward there for you.</p>
+
+<p>Unfortunately there’s not much you can do about this. You could contact your ISP and ask for a public address, but it’s unlikely to happen. This kind of topology is very common in mobile connections, and sometimes on older DSL connections. Your best bet would be to get a proper broadband connection, of course researching beforehand if the connection plan gives you a public external address.</p>]]></content><author><name></name></author><category term="networking" /><summary type="html"><![CDATA[There’s a million and then some guides online that tell you how to set up a port-forward in your home router box, but what about when the forward doesn’t actually work? In this post I’ve collected the common reasons why after a port-forward you still can’t get your friend to connect to your cool Minecraft server (or for that matter, any online service behind your router box), and what you may be able to do about it.]]></summary></entry><entry><title type="html">Factorio observations part 1: All about loaders</title><link href="https://blog.spans.fi/2020/07/26/factorio-observations-part-1-all-about-loaders.html" rel="alternate" type="text/html" title="Factorio observations part 1: All about loaders" /><published>2020-07-26T09:55:49+00:00</published><updated>2020-07-26T09:55:49+00:00</updated><id>https://blog.spans.fi/2020/07/26/factorio-observations-part-1-all-about-loaders</id><content type="html" xml:base="https://blog.spans.fi/2020/07/26/factorio-observations-part-1-all-about-loaders.html"><![CDATA[<p>This post is part of an ongoing series about designs I’ve come up with and commonly use to do things in a heavily modded Factorio playthrough. These posts are kind-of living documents as well, which I update with corrections and observations as time goes along.</p>
+
+<p>I am using the wonderful <a href="https://mods.factorio.com/mod/LoaderRedux">Loaders Redux</a> mod by Optera (<a href="https://github.com/Yousei9/Loader-Redux">Github</a>), which adds these devices to load/unload containers, machines and trains as fast as a belt will allow. They’re tiered the same way as belts are, so there will always be a loader available to keep a belt saturated or consume a saturated belt.</p>
+
+<p><img src="/assets/2020/07/loaders.png" alt="Loaders, love 'em." /></p>
+
+<p>They’re like super fucking fast inserters, ok? How many inserters do you need to saturate a belt? Don’t even care, I got loaders.</p>
+
+<p>These things from <em>Loaders Redux</em> are 2x1 entities that consume no power; IMO a bit overpowered but if a power requirement was added it’d be fine. Tradeoffs, tradeoffs. But I digress. Here’s how I use ‘em.</p>
+
+<h2 id="loading-and-unloading-machines">Loading and unloading machines</h2>
+
+<p>Loaders, (underground) belts and splitters can be woven together quite neatly to create easily stacked designs to load and unload different machines depending on the size of the machine and the amount of inputs and outputs required. These are the designs I commonly use.</p>
+
+<p>A 3x3 machine, most common one probably being the assembling machine. Other sizes of machine are available. The principles behind the designs don’t change with smaller or larger machines (you’ll just have an easier time weaving together larger machines since there’s so much more surface area to stick belts into). Anyways here’s two variations for a simple one-input one-output assembling machine.</p>
+
+<p>This design has the machines stacked, separated by one tile. The entire design is 9 tiles wide. Input on the left, output on the right. One belt - or a pair of belts - feeding into the input splitter will feed as many machines as the belt will allow. The same thing happens on the output side as well, except to the other direction of course.</p>
+
+<p><img src="/assets/2020/07/1-1.png" alt="One input, one output. Taller variation." /></p>
+
+<p>Alternatively, trading horizontal space for vertical space savings, the machines can be stacked touching each other and instead use 11 tiles horizontally. Same principles still apply.</p>
+
+<p><img src="/assets/2020/07/2.png" alt="w i d e" /></p>
+
+<hr />
+
+<p>Okay so how about more than one belt as input? Two belts going in is still simple, requiring only belts and splitters (and the loaders of course). Again, two different designs, although this time with a different tradeoff.</p>
+
+<p>Both of these designs build upon the 9-wide one above with just the one input. They both start off by nudging the machines one more tile apart to make space for the new loader. The difference between the two is where the new input comes in from. First design; both inputs from the same direction.</p>
+
+<p><img src="/assets/2020/07/3.png" alt="These two just can't ever get together" /></p>
+
+<p>The newly added belt is just like in the 11-wide design seen earlier, now essentially combining both designs. The design is taller and wider, but it has two belts feeding each machine. As usual, the output can be anything since the input side could just be mirrored to the output to have as many outputs as needed.</p>
+
+<p><em>But wait</em>, we could nudge the machines even further apart to save a tile of horizontal space. Now there’s an entire machine’s worth of empty space between the two, but the input column is still just four tiles wide.</p>
+
+<p><img src="/assets/2020/07/7.png" alt="Even further apart, even more compact" /></p>
+
+<p><em>And that’s not all</em>, the new input belt can be turned around to instead come in from the opposite side to the already existing input, which also results in the input column being four tiles wide, and it doesn’t require the machines to be so far apart. It also entirely fills the empty gaps left behind which is <em>so neat</em>.</p>
+
+<p><img src="/assets/2020/07/4.png" alt="just look at how tightly packet that input side is" /></p>
+
+<p>This of course means the inputs are on the opposite sides to the machines, which may cause issues with keeping the machines fed. Note that it’s possible to run an underground belt through the rightmost tile column of the input side to get the second input to the other side from the same side as the first input, which would fill the input column to the <em>max</em>.</p>
+
+<hr />
+
+<p>How about three input belts? At this point - and honestly even earlier - you should consider combining two recipe inputs into a single belt (you got two halves after all). It’s likely if the recipe calls for three or more input materials, it’s gonna take enough time to complete it doesn’t matter if the inputs are only half of a full belt. But I’m sure you can weave in three inputs (why not put one input on the same side as the output?)</p>
+
+<hr />
+
+<p>Okay, what about liquids? Luckily pipes are way more flexible than belts (even if they’re made of solid metal), so their placement can be dictated more easily. The pipe input is simply a line that runs alongside the machines, and the machines tap into it however. And since the one-input-belt design from earlier leaves a nice little gap to fit a pipe into, it all comes together <em>so neat</em>.</p>
+
+<p><img src="/assets/2020/07/5.png" alt="The pipe fits right in" /></p>
+
+<p>Could even save a couple underground pipes and have two adjacent machines use the same pipe as input.</p>
+
+<hr />
+
+<p>The ideas behind these designs, once figured out, can be exploited to the extreme to fit machines together as close as possible while still weaving in multiple inputs and outputs, both belt and liquid. This is an example of a design for the 5x5 Angel’s Floatation cell that has an input of one belt and liquid, and an output of two belts and a liquid. The design actually has two columns of the machines facing “away” from each other with both inputs and half of the output on the inside of the machine columns, and the rest on the outside.</p>
+
+<p><img src="/assets/2020/07/6.png" alt="It took me a long time to figure this one out" /></p>
+
+<p>So that’s machines, what about containers?</p>
+
+<h2 id="big-ass-containers">Big-ass containers</h2>
+
+<p>Crates are kinda boring. They’re small, both in terms of physical and storage, and I’m a big boy so I want something bigger. Angel’s got my back again with <a href="https://mods.factorio.com/mod/angelsaddons-warehouses">warehouses</a> and <a href="https://mods.factorio.com/mod/angelsaddons-oresilos">silos</a>, these behemoths of containers that fit tens upon tens of thousands of items, and take a considerable amount of space (<em>and resources to craft</em>). They’re great for storing a <strong>lot</strong> of something, or a decent amount of many things. They’re the perfect match for loaders.</p>
+
+<p>I’m sure you understand how loaders and containers interact, but the earlier point about storing multiple things has one caveat: one item might fill up the warehouse/silo so much other things can’t fit anymore, and we don’t want that. If your instinct tells you the circuit network can help with that, you’re right!</p>
+
+<p>Except there’s another caveat. Loaders can’t interact with the circuit network directly, so in order to control them letting stuff in or out, we have to control the belt directly next to them.</p>
+
+<p><img src="/assets/2020/07/10.png" alt="yain't gettin' in" /></p>
+
+<p>Problem solved!</p>
+
+<p>Except there’s <em>one more caveat</em>: the loaders have an “internal buffer” that might mess things up. Since the loader is like a two-tile long piece of belt, cutting off its input can still leave some items inside it and they’ll end up in the container even after the cut. It’s not in any way consistent how many items there might be inside the loader at any time, but we can be sure it’s never more than four. Just something to keep in mind if you ever find yourself caring about the <em>exact</em> amount of things inside something.</p>
+
+<h2 id="trains">Trains!</h2>
+
+<p>I know I love trains, and probably so do you. Unfortunately I’m not gonna talk about trains here, but instead in another post I haven’t actually written yet all about station designs … so stay tuned?</p>]]></content><author><name></name></author><category term="factorio" /><summary type="html"><![CDATA[This post is part of an ongoing series about designs I’ve come up with and commonly use to do things in a heavily modded Factorio playthrough. These posts are kind-of living documents as well, which I update with corrections and observations as time goes along.]]></summary></entry><entry><title type="html">Transforming an Ubuntu installation into systemd-boot + XanMod + LUKS + LVM</title><link href="https://blog.spans.fi/2020/03/29/transforming-an-ubuntu-installation-into-systemd-boot-luks-lvm-live.html" rel="alternate" type="text/html" title="Transforming an Ubuntu installation into systemd-boot + XanMod + LUKS + LVM" /><published>2020-03-29T14:48:47+00:00</published><updated>2020-03-29T14:48:47+00:00</updated><id>https://blog.spans.fi/2020/03/29/transforming-an-ubuntu-installation-into-systemd-boot-luks-lvm-live</id><content type="html" xml:base="https://blog.spans.fi/2020/03/29/transforming-an-ubuntu-installation-into-systemd-boot-luks-lvm-live.html"><![CDATA[<p>My laptop’s been running standard Ubuntu 19.04 for some time now. I had the idea of swapping its bootloader, GRUB2, for systemd-boot, using the XanMod kernel and swapping its bunch-of-GPT-partitions into LUKS + LVM.</p>
+
+<p>Motivation? I was bored as fuck during this self-imposed quarantine.</p>
+
+<p>Quick word of warning, this post is in no way written to be a complete guide on how to achieve what I described step-by-step, but more of a writeup on what I did from which you can learn and adapt.</p>
+
+<h2 id="starting-off">Starting off</h2>
+
+<p>The initial partitions look as such:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Partition</th>
+      <th>Size</th>
+      <th>Filesystem</th>
+      <th>Mountpoint</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>sda1</td>
+      <td>250M</td>
+      <td>EFI System</td>
+      <td>/boot/efi</td>
+    </tr>
+    <tr>
+      <td>sda2</td>
+      <td>8G</td>
+      <td>swap</td>
+      <td>[SWAP]</td>
+    </tr>
+    <tr>
+      <td>sda3</td>
+      <td>560G</td>
+      <td>ext4</td>
+      <td>/home</td>
+    </tr>
+    <tr>
+      <td>sda4</td>
+      <td>50G</td>
+      <td>ext4</td>
+      <td>/var</td>
+    </tr>
+    <tr>
+      <td>sda5</td>
+      <td>380G</td>
+      <td>ext4</td>
+      <td>/</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Pretty standard stuff. What I’m aiming to achieve here is to get something like:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Partition</th>
+      <th>Size</th>
+      <th>Filesystem</th>
+      <th>Mountpoint</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>sda1</td>
+      <td>250M</td>
+      <td>EFI System</td>
+      <td>/boot/efi</td>
+    </tr>
+    <tr>
+      <td>sda2</td>
+      <td>~1TB</td>
+      <td>LUKS</td>
+      <td> </td>
+    </tr>
+    <tr>
+      <td>-&gt; LVM</td>
+      <td> </td>
+      <td>LVM</td>
+      <td> </td>
+    </tr>
+    <tr>
+      <td>-&gt; -&gt; LV root</td>
+      <td>60G</td>
+      <td>ext4</td>
+      <td>/</td>
+    </tr>
+    <tr>
+      <td>-&gt; -&gt; LV</td>
+      <td>60G</td>
+      <td>ext4</td>
+      <td>/var</td>
+    </tr>
+    <tr>
+      <td>-&gt; &gt; LV home</td>
+      <td>~800G</td>
+      <td>ext4</td>
+      <td>/home</td>
+    </tr>
+    <tr>
+      <td>-&gt; -&gt; LV swap</td>
+      <td>16G</td>
+      <td>swap</td>
+      <td>[SWAP]</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>A bit more complicated, sure, but where’s fun in simple?</p>
+
+<p>The two required packages for all this are <code class="language-plaintext highlighter-rouge">lvm2</code> and <code class="language-plaintext highlighter-rouge">cryptsetup</code>.</p>
+
+<p>Let’s start off with the easy bit.</p>
+
+<h2 id="systemd-boot">systemd-boot</h2>
+
+<p>I’ll be closely following <a href="https://blobfolio.com/2018/06/replace-grub2-with-systemd-boot-on-ubuntu-18-04/">this guide by Josh Stoik</a>, adapted to my scenario.<br />
+First up, change to the root user to ease things up a bit: <code class="language-plaintext highlighter-rouge">sudo -i</code></p>
+
+<p>Create a skeleton directory structure for the new bootloader.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>cd /boot/efi
+mkdir -p loader/entries
+mkdir ubuntu
+</code></pre></div></div>
+
+<p>The <code class="language-plaintext highlighter-rouge">loader</code> and <code class="language-plaintext highlighter-rouge">entries</code> directories will contain configuration files for each thing you wish to boot, and the <code class="language-plaintext highlighter-rouge">ubuntu</code> directory will contain the kernel and initramfs images.</p>
+
+<p>Then the initial loader configuration file. This defines the default boot, lets the boot selection screen be displayed for a second before automatically selecting the default, and allow the user to change the boot parameters before booting.</p>
+
+<blockquote>
+  <p><code class="language-plaintext highlighter-rouge">loader/loader.conf</code></p>
+</blockquote>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>default ubuntu
+timeout 1
+editor 1
+</code></pre></div></div>
+
+<p>‌<br />
+As Stoik explains in his post, Debian-based systems won’t automatically get its generated kernel and initramfs images into this partition, which means you’ll have to do it yourself. Likewise, systemd-boot won’t generate entries for each kernel you might use so you’ll have to create those yourself as well. Stoik provides a script for it which I’ve adapted for my use.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>#!/bin/bash
+#
+# This is a simple kernel hook to populate the systemd-boot entries
+# whenever kernels are added or removed.
+#
+# Original script by Josh Stoik, modified by Spans
+# 
+
+# The UUID of your encrypted partition.
+UUID="CHANGEME"
+
+# The LUKS volume slug you want to use, which will result in the
+# partition being mounted to /dev/mapper/CHANGEME.
+VOLUME="CHANGEME"
+
+# Any rootflags you wish to set.
+ROOTFLAGS="quiet splash"
+
+# Our kernels.
+KERNELS=()
+FIND="find /boot -maxdepth 1 -name 'vmlinuz-*' -type f -print0 | sort -rz"
+while IFS= read -r -u3 -d $'\0' LINE; do
+	KERNEL=$(basename "${LINE}")
+	KERNELS+=("${KERNEL:8}")
+done 3&lt; &lt;(eval "${FIND}")
+
+# There has to be at least one kernel.
+if [${#KERNELS[@]} -lt 1 ]; then
+	echo -e "\e[2msystemd-boot\e[0m \e[1;31mNo kernels found.\e[0m"
+	exit 1
+fi
+
+# Perform a nuclear clean to ensure everything is always in perfect
+# sync.
+rm /boot/efi/loader/entries/*.conf
+rm -rf /boot/efi/ubuntu
+mkdir /boot/efi/ubuntu
+
+# Copy the latest kernel files to a consistent place so we can keep
+# using the same loader configuration.
+LATEST="${KERNELS[@]:0:1}"
+echo -e "\e[2msystemd-boot\e[0m \e[1;32m${LATEST}\e[0m"
+for FILE in config initrd.img System.map vmlinuz; do
+    cp "/boot/${FILE}-${LATEST}" "/boot/efi/ubuntu/${FILE}"
+    cat &lt;&lt; EOF &gt; /boot/efi/loader/entries/ubuntu.conf
+title Ubuntu
+linux /ubuntu/vmlinuz
+initrd /ubuntu/initrd.img
+options cryptdevice=UUID=${UUID}:${VOLUME} root=/dev/mapper/crypt--vg-root rw ${ROOTFLAGS}
+EOF
+done
+
+# Copy any legacy kernels over too, but maintain their version-based
+# names to avoid collisions.
+if [${#KERNELS[@]} -gt 1 ]; then
+	LEGACY=("${KERNELS[@]:1}")
+	for VERSION in "${LEGACY[@]}"; do
+	    echo -e "\e[2msystemd-boot\e[0m \e[1;32m${VERSION}\e[0m"
+	    for FILE in config initrd.img System.map vmlinuz; do
+	        cp "/boot/${FILE}-${VERSION}" "/boot/efi/ubuntu/${FILE}-${VERSION}"
+	        cat &lt;&lt; EOF &gt; /boot/efi/loader/entries/ubuntu-${VERSION}.conf
+title Ubuntu ${VERSION}
+linux /ubuntu/vmlinuz-${VERSION}
+initrd /ubuntu/initrd.img-${VERSION}
+options cryptdevice=UUID=${UUID}:${VOLUME} root=/dev/mapper/crypt--vg-root rw ${ROOTFLAGS}
+EOF
+	    done
+	done
+fi
+
+exit 0
+</code></pre></div></div>
+
+<p>This script will be used as a hook when kernel images are installed or updated. Copy it into both <code class="language-plaintext highlighter-rouge">/etc/kernel/postinst.d/zz-update-systemd-boot</code> and <code class="language-plaintext highlighter-rouge">/etc/kernel/postrm.d/zz-update-systemd-boot</code> and make them executable (permissions <code class="language-plaintext highlighter-rouge">0755</code>).</p>
+
+<p>Then install the new bootloader: <code class="language-plaintext highlighter-rouge">bootctl install --path=/boot/efi</code></p>
+
+<p>Stoik’s guide goes into configuring the bootloader for Secure Boot, but I’ll be skipping that for now. Test that the new bootloader works, and when it does you can safely purge GRUB: <code class="language-plaintext highlighter-rouge">apt purge grub*</code></p>
+
+<h2 id="xanmod-kernel">XanMod kernel</h2>
+
+<p>This bit’s simple. Add XanMod’s apt source and signing key.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>echo 'deb http://deb.xanmod.org releases main' | sudo tee /etc/apt/sources.list.d/xanmod-kernel.list
+wget -qO - https://dl.xanmod.org/gpg.key | sudo apt-key add -
+</code></pre></div></div>
+
+<p>Then install it.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>apt update
+apt install linux-xanmod
+</code></pre></div></div>
+
+<p>The kernel <code class="language-plaintext highlighter-rouge">postinst</code>- and <code class="language-plaintext highlighter-rouge">postrm</code>-hooks set up earlier will make sure the bootloader has the kernel and initramfs images available and that the proper bootloader entries are in place.</p>
+
+<h2 id="pivoting-to-luks--lvm">Pivoting to LUKS + LVM</h2>
+
+<p>This bit’s not simple. Since I’m so adventurous I decided to do all this without resorting to booting into a live media. On a high-level my approach is the following:</p>
+
+<ol>
+  <li>shrink the existing root partition enough to fit a copy of all data on the system</li>
+  <li>set up the new partition and encryption scheme on the newly created empty space</li>
+  <li>copy everything over to the new scheme</li>
+  <li>make it bootable</li>
+  <li>once it works, delete the old partitions</li>
+  <li>grow the new partitions to fill the drive</li>
+</ol>
+
+<h3 id="get-the-old-root-unmounted">Get the old root unmounted</h3>
+
+<p>Shrinking an ext4 partition can be done without reboots if the partition is first unmounted. Just directly unmounting the root partition isn’t going to work for obvious reasons, which is why it’s commonplace to use a bootable media and shrink the partition from there. I mentioned I wasn’t going to use any bootable media, so how exactly am I going to unmount my root partition while still booted from it?</p>
+
+<p>Enter <code class="language-plaintext highlighter-rouge">pivot_root</code>, a thing about as magical as <code class="language-plaintext highlighter-rouge">chroot</code>. What it does is change the active root into some other location, just like <code class="language-plaintext highlighter-rouge">chroot</code>, but also mount the old root into a directory inside the new one. From there you can still mess with the old root while residing in the new one. I’ll be following and adapting <a href="https://unix.stackexchange.com/a/227318">this guide by Tom Hunt</a>.</p>
+
+<p>First things first, there’s no way to do all the tricks here if there’s an entire desktop environment running. Start off by booting into single-user mode. With the bootloader we set up earlier, this is easily done by pressing <code class="language-plaintext highlighter-rouge">e</code> during the boot selection and appending <code class="language-plaintext highlighter-rouge">single</code> to the boot parameters. This’ll make systemd start the minimum required services and run an emergency rescue shell that lets you access everything you’ll need.</p>
+
+<p>What we’ll be doing next is copying enough of the system into a memory-backed tmpfs, pivoting into it and unmounting the root filesystem on drive, after of which the drive’s partitions are free to mess around with.</p>
+
+<p>Create a location for the pivot root and mount a tmpfs into it. Size the tmpfs appropriately to fit the important bits of your root partition. Keep in mind it’ll reside entirely in memory and use swap if needed.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>mkdir -p /tmp/tmproot
+cd /tmp
+mount -t tmpfs -o size=14G none tmproot
+</code></pre></div></div>
+
+<p>Copy the important bits over to it.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>mkdir /tmp/tmproot/{proc,sys,dev,run,usr,var,tmp,oldroot}
+cp -ax /{bin,etc,mnt,sbin,lib,lib64} tmproot/
+cp -ax /usr/{bin,sbin,lib,lib64} tmproot/usr/
+cp -ax /var/{account,empty,lib,local,lock,nis,opt,preserve,run,spool,tmp,yp} tmproot/var
+</code></pre></div></div>
+
+<p>I had an issue where the combined size of my root + <code class="language-plaintext highlighter-rouge">/var</code> was larger than I could fit into memory + swap (16G total), so I opted to leave <code class="language-plaintext highlighter-rouge">/var</code> out from the pivot. This turned out to not cause any issues - or in any case I didn’t notice or run into any.</p>
+
+<p>Pivot into the new root and mount the system filesystems into it.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>mount --make-rprivate /
+pivot_root /tmp/tmproot /tmp/tmproot/oldroot
+for i in dev proc sys run; do mount --move /oldroot/$i /$i; done
+</code></pre></div></div>
+
+<p>Now to get the old root partition unmounted. Everything running off it has to be stopped (or killed). See what’s using it and what services are currently running.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>fuser -vm /oldroot systemctl | grep running
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">systemctl stop</code> the services, or kill the executables. Before you do anything there’s two catches though!</p>
+
+<ul>
+  <li>systemd itself is still running off the old root. This is easily fixed by re-execing it with systemctl daemon-reexec</li>
+  <li>The rescue session you’re in is also running off the old root. Stopping or killing it will end the session and you’ll have to force-boot your machine to get back, nullifying all your progress. Instead of stopping or killing it, restart the session: <code class="language-plaintext highlighter-rouge">systemctl restart rescue</code></li>
+</ul>
+
+<p>Once the old root isn’t being used by anything anymore, unmount it: <code class="language-plaintext highlighter-rouge">umount /oldroot</code>. If like me you have <code class="language-plaintext highlighter-rouge">/var</code> and <code class="language-plaintext highlighter-rouge">/home</code> mounted on it, unmount them as well before finally unmounting the old root.<br />
+‌</p>
+
+<h3 id="shrink-it-crypt-it-lvm-it">Shrink it, crypt it, LVM it</h3>
+
+<p>Now that the old root’s unmounted and we’re running off memory, the old root is easily shrunk.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>e2fsck -f /dev/sda5
+resize2fs -L 30G /dev/sda5
+</code></pre></div></div>
+
+<p>This frees up a neat bit of space to work in. Using a decent partition editor (I’m using <code class="language-plaintext highlighter-rouge">fdisk</code>), delete the root partition and recreate it as large (or small?) as the filesystem was shrunk to. Then create a new partition in the empty space.</p>
+
+<p>Encrypt and open this newly created partition (<em>pick a strong passphrase!</em>).</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>cryptsetup luksFormat --type=luks2 /dev/sda6
+cryptsetup open /dev/sda6 lvmcrypt
+</code></pre></div></div>
+
+<p>Set it up as an LVM physical volume, stick a volume group into it and get some logical volumes and filesystems going. Standard LVM stuff here, I won’t be going to much detail.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>pvcreate /dev/mapper/lvmcrypt
+vgcreate crypt-vg /dev/mapper/lvmcrypt
+
+lvcreate -L 60G -n root crypt-vg
+lvcreate -L 60G -n var crypt-vg
+lvcreate -L 2G -n swap crypt-vg
+lvcreate -l 100%FREE -n home crypt-vg
+
+mkfs.ext4 /dev/mapper/crypt--vg-root
+mkfs.ext4 /dev/mapper/crypt--vg-var
+mkfs.ext4 /dev/mapper/crypt--vg-home
+mkswap /dev/mapper/crypt--vg-swap
+</code></pre></div></div>
+
+<p>There’s the new partitions, now to get data from the old ones into them.</p>
+
+<h3 id="the-great-migration">The great migration</h3>
+
+<p>Get the old root back into business, and any other partitions mounted inside it.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>mount /dev/sda5 /oldroot
+mount /dev/sda4 /oldroot/var
+mount /dev/sda3 /oldroot/home
+</code></pre></div></div>
+
+<p>Get the new partitions into play as well.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>mkdir /newroot
+mount /dev/mapper/crypt--vg-root /newroot
+mkdir /newroot/{var,home}
+mount /dev/mapper/crypt--vg-home /newroot/home
+mount /dev/mapper/crypt--vg-var /newroot/var
+</code></pre></div></div>
+
+<p>Simple copies from there to here will do, much like how previously was done. This’ll take a while!</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>cp -ax /oldroot/{bin,boot,sbin,etc,lib,lib64,libx32,opt,root,snap,srv,usr,var,home} /newroot/
+</code></pre></div></div>
+
+<p>Nothing better than stacking magic on top of magic; <code class="language-plaintext highlighter-rouge">chroot</code> into this new root.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>for i in dev sys proc run; do mount --bind /$i /newroot/$i; done
+chroot /newroot
+</code></pre></div></div>
+
+<p>We’ve now gone from the pre-existing root partition into an in-memory root into the new root. Pretty wild!</p>
+
+<h3 id="boot-it">Boot it</h3>
+
+<p>Now that there’s LUKS in between the drive and its data, there’s a bit of configuration for it in order to make it work at boot.</p>
+
+<p>Find out the UUID of the encrypted partition: <code class="language-plaintext highlighter-rouge">blkid /dev/sda6</code>. Stick that and the crypt device’s name into <code class="language-plaintext highlighter-rouge">/etc/crypttab</code>.</p>
+
+<blockquote>
+  <p><code class="language-plaintext highlighter-rouge">/etc/crypttab</code></p>
+</blockquote>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># &lt;target name&gt;	&lt;source device&gt; &lt;key file&gt;	&lt;options&gt;
+lvmcrypt UUID=CHANGEME none luks,discard
+</code></pre></div></div>
+
+<p>Jam the UUID into the script from earlier as well if you haven’t already!</p>
+
+<p>Generate new initramfs and set up the bootloader.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>update-initramfs -u -k all
+/etc/kernel/postinst.d/zz-update-systemd-boot
+</code></pre></div></div>
+
+<p>The new root is now complete, including the bootloader and all. Cross your fingers and reboot the system.</p>
+
+<h2 id="get-some-space">Get some space</h2>
+
+<p>If all went well (somehow I doubt that) the system will boot into a prompt asking for the decryption key for the encrypted partition. Once that’s open, LVM steps in and activates the logical volumes inside the now-unlocked partition. From there on systemd does its thing and starts everything required.</p>
+
+<p>There’s still the matter of reclaiming the space left behind by the old partitions.</p>
+
+<h3 id="space-to-move-into">Space to move into</h3>
+
+<p>Get rid of the old partitions and create a single new one to fill the space they left behind. Encrypt and open it. Create an LVM PV out of it. Extend the existing LVM VG with it.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>cryptsetup luksFormat --type=luks2 /dev/sda2
+cryptsetup open /dev/sda2 newcrypt
+lvcreate /dev/mapper/newcrypt
+vgextend crypt-vg /dev/mapper/newcrypt
+</code></pre></div></div>
+
+<p>Move the entire previous PV into the new one. This too will take a while!</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>pvmove /dev/mapper/crypt /dev/mapper/newcrypt
+</code></pre></div></div>
+
+<p>Remove the old PV from the VG. Close and delete it. Expand the new one to fill its space.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>vgreduce crypt-vg /dev/mapper/lvmcrypt
+cryptsetup close /dev/mapper/lvmcrypt
+fdisk /dev/sda
+...
+</code></pre></div></div>
+
+<p>Extend the partition, the crypt device and the PV to this new space.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>fdisk /dev/sda
+...
+cryptsetup resize /dev/mapper/newcrypt
+pvextend /dev/mapper/newcrypt
+</code></pre></div></div>
+
+<h3 id="bootings-broke-fix-it">Booting’s broke, fix it</h3>
+
+<p>This new partition has a different UUID to the previous one (duh), change it in both <code class="language-plaintext highlighter-rouge">/etc/crypttab</code> and the systemd-boot hook scripts.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>blkid /dev/sda2
+</code></pre></div></div>
+
+<blockquote>
+  <p><code class="language-plaintext highlighter-rouge">/etc/crypttab</code></p>
+</blockquote>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># &lt;target name&gt;	&lt;source device&gt; &lt;key file&gt;	&lt;options&gt;
+lvmcrypt UUID=NEWUUID none luks,discard
+</code></pre></div></div>
+
+<blockquote>
+  <p><code class="language-plaintext highlighter-rouge">/etc/kernel/postinst.d/zz-update-systemd-boot</code> <code class="language-plaintext highlighter-rouge">/etc/kernel/postrm.d/zz-update-systemd-boot</code></p>
+</blockquote>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>...
+# The UUID of your encrypted partition.
+UUID="NEWUUID"
+...
+</code></pre></div></div>
+
+<p>Recreate initramfs and set up the bootloader</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>update-initramfs -u -k all
+/etc/kernel/postinst.d/zz-update-systemd-boot
+</code></pre></div></div>
+
+<p>That’s it! Enjoy your new encrypted, LVM’d, systemd-boot’d and XanMod’d Ubuntu.</p>
+
+<!--kg-card-end: markdown-->]]></content><author><name></name></author><category term="linux" /><summary type="html"><![CDATA[My laptop’s been running standard Ubuntu 19.04 for some time now. I had the idea of swapping its bootloader, GRUB2, for systemd-boot, using the XanMod kernel and swapping its bunch-of-GPT-partitions into LUKS + LVM.]]></summary></entry><entry><title type="html">Why I’m not recommending VyOS anymore and how I built my own</title><link href="https://blog.spans.fi/2019/07/15/why-im-not-recommending-vyos-anymore.html" rel="alternate" type="text/html" title="Why I’m not recommending VyOS anymore and how I built my own" /><published>2019-07-15T07:48:00+00:00</published><updated>2019-07-15T07:48:00+00:00</updated><id>https://blog.spans.fi/2019/07/15/why-im-not-recommending-vyos-anymore</id><content type="html" xml:base="https://blog.spans.fi/2019/07/15/why-im-not-recommending-vyos-anymore.html"><![CDATA[<p>I used to like <a href="https://vyos.io/''">VyOS</a> quite a lot as a general-purpose lightweight Linux-based easily virtualised router appliance. It didn’t really have anything to complain about, other than the fact that the latest build for its version 1.1.8 was released late-2017.</p>
+
+<p>Starting October 2018 it’s getting too old. Components start acting in obscure ways when interacting with their newer counterparts (from experience its use of a very old strongSwan caused plentiful issues). Luckily the development for the new version 1.2.0 has been underway and its first release candidate is out. Great! Packages are updated, new features are added. Too bad that it’ll take them <a href="https://blog.vyos.io/vyos-1.2.0-rc11-is-available-for-download">11 release candidates</a> to get it stable enough with the new unstable build of FRR and whatnot. Somewhere in that time they also decided to start making money with VyOS and moved the stable builds behind a paywall. You can get the stable branch, Crux, free if you’re a non-profit of sorts, or are willing to build it from source yourself. The free builds, as they call, are “rolling” releases.</p>
+
+<h1 id="how-not-to-do-rolling-releases">How (not) to do rolling releases</h1>
+
+<p>In the software development world rolling releases refer to the model of releasing updates as soon as they’re available, functioning and stable. VyOS’ rolling releases are nightlies that sure are available, but functioning is a roll of a die and stability is obviously not a thing or otherwise they’d be behind the aforementioned paywall. They’re not even nightlies of the very latest Crux version 1.2.1, but instead nightlies of the already outdated 1.2.0. This is the main reason why I’m not recommending VyOS anymore: the builds you get outside the paywall are out of date despite being nightlies, and very, very broken. Unfortunately the only somewhat reasonable, yet still absolutely nonsensical solution to it I’ve heard has been “find one nightly that works for you and use it everywhere, never updating in fear of it not working anymore”. I’m sure you see why that is not a good solution.</p>
+
+<h1 id="how-i-built-my-own-replacement">How I built my own replacement</h1>
+
+<p>In its essence VyOS is Debian 8 (with an updated kernel), FRR for dynamic routing, iptables for firewalling, a unifying configuration utility and a handful of network utilities usually seen in routers. Installing those (except the configuration utility) into a standard Debian install isn’t difficult at all, which is why that’s exactly what I did.</p>
+
+<h2 id="interface-configuration">Interface configuration</h2>
+<!--kg-card-begin: markdown-->
+
+<p>At a glance the only features my network used with its handful of VyOS installs were IBGP, static routing, firewalling and VRRP. Starting with a Debian 9 install (at the time of writing 10 was still just moments away from final release, in fact it was released in the middle of writing), I began by getting a bit more modern network configuration. Debian 9 is sticking to <code class="language-plaintext highlighter-rouge">ifupdown</code> and likely upgrading it to <code class="language-plaintext highlighter-rouge">ifupdown2</code> in Buster. I decided to slightly shrink the installation size by ditching <code class="language-plaintext highlighter-rouge">ifupdown</code> and using SystemD’s networking configuration, which is also more flexible than <code class="language-plaintext highlighter-rouge">ifupdown</code>. Its configuration is located in <code class="language-plaintext highlighter-rouge">/etc/systemd/networking</code> and it uses <code class="language-plaintext highlighter-rouge">.network</code> files, one per interface. These two files configure the interfaces for my Internet-facing router:</p>
+
+<p><code class="language-plaintext highlighter-rouge">00-wan.network</code></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[Match]
+Name=ens192
+
+[Network]
+DHCP=ipv4
+
+[DHCP]
+UseDNS=false
+UseDomains=false
+</code></pre></div></div>
+
+<p><code class="language-plaintext highlighter-rouge">01-lab-transit.network</code></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[Match]
+Name=ens224
+
+[Network]
+Address=10.0.250.1/24
+DNS=10.0.20.20
+DNS=10.0.20.21
+</code></pre></div></div>
+
+<!--kg-card-end: markdown-->
+<h2 id="dynamic-routing">Dynamic routing</h2>
+<!--kg-card-begin: markdown-->
+
+<p>To cover IBGP and static routing I installed FRR from its <a href="https://deb.frrouting.org/">own Debian repository</a>. By adding my user to the groups <code class="language-plaintext highlighter-rouge">frr</code> and <code class="language-plaintext highlighter-rouge">frrvty</code>, I am able to access its configuration in <code class="language-plaintext highlighter-rouge">/etc/frr/</code>. After enabling the BGP daemon, I took a first look at its configuration utlity <code class="language-plaintext highlighter-rouge">vtysh</code>. To my surprise the thing’s almost exactly like Cisco’s IOS with some few minor differences, so getting some static routes and internal BGP running was a breeze. Below is the FRR configuration from one of my new router VMs:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>frr version 7.1
+frr defaults traditional
+hostname VPN-R
+log syslog informational
+no ipv6 forwarding
+service integrated-vtysh-config
+!
+router bgp 4204206969
+ bgp router-id 10.0.250.4
+ neighbor 10.0.250.1 remote-as internal
+ neighbor 10.0.250.2 remote-as internal
+ neighbor 10.0.250.11 remote-as internal
+ neighbor 10.0.250.12 remote-as internal
+ !
+ address-family ipv4 unicast
+  network 10.0.60.0/24
+ exit-address-family
+!
+line vty
+!
+</code></pre></div></div>
+
+<!--kg-card-end: markdown-->
+<h2 id="firewalling">Firewalling</h2>
+<!--kg-card-begin: markdown-->
+
+<p>I’m not much of a fan of writing <code class="language-plaintext highlighter-rouge">iptables</code> commands by hand, which is why so far I’ve resorted to using utilities such as <code class="language-plaintext highlighter-rouge">ufw</code> and <code class="language-plaintext highlighter-rouge">firewalld</code> to configure firewalling. In a router though, neither of those aren’t really suited out of the box for firewalling forwarded traffic. Recently there’s been improvements on the <code class="language-plaintext highlighter-rouge">iptables</code> front with <code class="language-plaintext highlighter-rouge">nftables</code> that works as a replacement for the entire family of packet/frame handling utilities, including functionality from <code class="language-plaintext highlighter-rouge">iptables</code>, <code class="language-plaintext highlighter-rouge">arptables</code> and <code class="language-plaintext highlighter-rouge">ebtables</code> alike. As usual, Stretch has a pretty old version of it but stretch-backports has only a slightly older version compared to the latest in Buster and Sid. Grabbing <code class="language-plaintext highlighter-rouge">nftables</code> from there and digging through its documentation (and largely copying config other people pasted online) I came up with the following configuration file (<code class="language-plaintext highlighter-rouge">/etc/nftables.conf</code>) for my Internet-facing router:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>#!/usr/sbin/nft -f
+
+flush ruleset
+
+define internal = ens224
+define external = ens192
+
+table inet filter {
+	chain input {
+		type filter hook input priority 0;
+
+		ct state { established, related } accept
+		ct state invalid drop
+
+		iifname { lo, $internal } accept
+
+		ip protocol icmp accept
+
+		drop
+	}
+	chain forward {
+		type filter hook forward priority 0;
+
+		iifname { lo, $internal } accept
+		oifname $internal ct state { established, related } accept
+
+		oifname $internal tcp dport 443 accept
+		oifname $internal udp dport 50000-50999 accept
+		oifname $internal udp dport 1337 accept
+
+		drop
+	}
+	chain output {
+		type filter hook output priority 0;
+	}
+}
+
+table ip nat {
+	chain prerouting {
+		type nat hook prerouting priority 0
+
+		iif $external tcp dport 443 dnat 10.0.20.175
+		iif $external udp dport 50000-50999 dnat 10.0.20.178
+		iif $external udp dport 1337 dnat 10.0.250.4
+	}
+
+	chain postrouting {
+		type nat hook postrouting priority 0
+
+		oifname $external masquerade
+	}
+}
+</code></pre></div></div>
+
+<p>Reading this configuration is very straight-forward; define aliases for interfaces, define the input-, forwarding- and output-chains for the filter table, define pre- and postrouting for the NAT table. Rules are defined top-down as usual, allowing and blocking traffic as needed. Finally after checking the syntax for validity with <code class="language-plaintext highlighter-rouge"># nft -c -f /etc/nftables.conf</code> the firewall service is enabled and started, and can be reloaded mid-run if the configuration changes.</p>
+
+<p>I can’t speak on your behalf but at least to me, that is a million and then some times easier to reason about than a bunch of <code class="language-plaintext highlighter-rouge">iptables</code> commands strung together in a file (<em>cough</em> <code class="language-plaintext highlighter-rouge">iptables-save</code> <em>cough</em>). And since it’s still just netfilter in the background, the same filtering and NAT’ing principles apply; the configuration just doesn’t want me throwing things (including myself) out the window.</p>
+
+<h2 id="the-rest">The rest</h2>
+
+<p>This setup doesn’t unfortunately have a unifying configuration tool built-in (but I’m working on one), so for now Ansible is the best choice for external configuration. I haven’t actually set it up for this yet, but knowing Ansible’s flexibility and the available playbooks for <a href="https://github.com/aruhier/ansible-role-systemd-networkd">networking</a>, <a href="https://github.com/mrlesmithjr/ansible-frr">FRR</a> and <a href="https://github.com/ipr-cnrs/nftables">nftables</a> it’ll be a breeze getting it going.</p>
+
+<p>So that’s how I got rid of VyOS for good.</p>
+
+<h3 id="edit-20191124">Edit (2019/11/24)</h3>
+
+<p>As I mentioned I’ve been working on such a unifying configuration tool, which is now <a href="https://github.com/Spanfile/Routing-Platform">up in GitHub</a>.</p>]]></content><author><name></name></author><category term="networking" /><category term="linux" /><summary type="html"><![CDATA[I used to like VyOS quite a lot as a general-purpose lightweight Linux-based easily virtualised router appliance. It didn’t really have anything to complain about, other than the fact that the latest build for its version 1.1.8 was released late-2017.]]></summary></entry></feed>
