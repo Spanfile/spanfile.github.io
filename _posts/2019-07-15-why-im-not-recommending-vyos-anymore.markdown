@@ -5,7 +5,9 @@ date: '2019-07-15 07:48:00'
 tags:
 - networking
 - linux
-redirect_from: /why-im-not-recommending-vyos-anymore
+redirect_from:
+- /why-im-not-recommending-vyos-anymore
+- /why-im-not-recommending-vyos-anymore/
 ---
 
 I used to like [VyOS](https://vyos.io/'') quite a lot as a general-purpose lightweight Linux-based easily virtualised router appliance. It didn't really have anything to complain about, other than the fact that the latest build for its version 1.1.8 was released late-2017.

@@ -5,7 +5,9 @@ date: '2018-11-27 18:06:00'
 tags:
 - homelab
 - linux
-redirect_from: /installing-debian-in-lvm-on-an-usb-drive-and-efi-booting-it
+redirect_from:
+- /installing-debian-in-lvm-on-an-usb-drive-and-efi-booting-it
+- /installing-debian-in-lvm-on-an-usb-drive-and-efi-booting-it/
 ---
 
 This post is largely based on Will Haley's post over [here](https://willhaley.com/blog/install-debian-usb/). I've combined it with various Google searches to show how I built a minimal Debian image, ready to be written to an USB drive and booted off. We'll be using LVM as a middleman in the image to ease with future partition manipulation.

@@ -5,7 +5,9 @@ date: '2021-12-13 12:47:21'
 tags:
 - networking
 - homelab
-redirect_from: /my-dn42-network-so-far
+redirect_from:
+- /my-dn42-network-so-far
+- /my-dn42-network-so-far/
 ---
 
 A couple months ago I joined [DN42](https://dn42.us/), and I've spent some of my spare time since then building my little chunk of (mostly) virtualised network there.

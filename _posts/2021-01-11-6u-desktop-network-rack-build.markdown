@@ -5,7 +5,9 @@ date: '2021-01-11 18:31:19'
 tags:
 - networking
 - homelab
-redirect_from: /6u-desktop-network-rack-build
+redirect_from:
+- /6u-desktop-network-rack-build
+- /6u-desktop-network-rack-build/
 ---
 
 My "core" LAN network consists of two rackmounted switches and a router. After moving into a new apartment, I didn't want to keep them in a zero-ventilation closet on the other side of the apartment, so I thought I'd put my massive desk to good use and build a small rack to stick the network gear in, and keep it on my desk for ease of use and good ventilation.

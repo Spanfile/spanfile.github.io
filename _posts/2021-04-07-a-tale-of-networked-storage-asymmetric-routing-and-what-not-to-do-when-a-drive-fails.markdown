@@ -5,7 +5,9 @@ title: A tale of networked storage, asymmetric routing and what not to do when a
 date: '2021-04-07 08:13:52'
 tags:
 - homelab
-redirect_from: /a-tale-of-networked-storage-asymmetric-routing-and-what-not-to-do-when-a-drive-fails
+redirect_from:
+- /a-tale-of-networked-storage-asymmetric-routing-and-what-not-to-do-when-a-drive-fails
+- /a-tale-of-networked-storage-asymmetric-routing-and-what-not-to-do-when-a-drive-fails/
 ---
 
 My lab network has a centralised storage server, a Dell R510 with a mismash of drives, running Debian 10 and ZFS. So far it has shared this storage over NFS, but that has turned out to cause issues which is why I opted to change the sharing medium to my lovechild iSCSI.

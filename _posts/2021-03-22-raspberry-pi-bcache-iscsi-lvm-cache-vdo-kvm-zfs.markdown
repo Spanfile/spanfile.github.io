@@ -6,7 +6,9 @@ tags:
 - linux
 - homelab
 - networking
-redirect_from: /raspberry-pi-bcache-iscsi-lvm-cache-vdo-kvm-zfs
+redirect_from:
+- /raspberry-pi-bcache-iscsi-lvm-cache-vdo-kvm-zfs
+- /raspberry-pi-bcache-iscsi-lvm-cache-vdo-kvm-zfs/
 ---
 
 Yep, that's how mad I've got during this lockdown.

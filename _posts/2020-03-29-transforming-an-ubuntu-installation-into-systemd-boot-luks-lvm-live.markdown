@@ -5,7 +5,9 @@ featured: true
 date: '2020-03-29 14:48:47'
 tags:
 - linux
-redirect_from: /transforming-an-ubuntu-installation-into-systemd-boot-luks-lvm-live
+redirect_from:
+- /transforming-an-ubuntu-installation-into-systemd-boot-luks-lvm-live
+- /transforming-an-ubuntu-installation-into-systemd-boot-luks-lvm-live/
 ---
 
 My laptop's been running standard Ubuntu 19.04 for some time now. I had the idea of swapping its bootloader, GRUB2, for systemd-boot, using the XanMod kernel and swapping its bunch-of-GPT-partitions into LUKS + LVM.

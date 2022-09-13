@@ -4,7 +4,9 @@ title: VyOS RADIUS user authentication
 date: '2019-01-24 13:23:08'
 tags:
 - networking
-redirect_from: /vyos-radius-login
+redirect_from:
+- /vyos-radius-login
+- /vyos-radius-login/
 ---
 
 Authenticating VyOS users with RADIUS is easy, but there's a couple of gotchas you should know of.

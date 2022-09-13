@@ -5,7 +5,9 @@ date: '2019-06-01 12:05:00'
 tags:
 - networking
 - windows
-redirect_from: /hyper-v-server-2016-intel-i350
+redirect_from:
+- /hyper-v-server-2016-intel-i350
+- /hyper-v-server-2016-intel-i350/
 ---
 
 I have a two-node Hyper-V failover cluster where both nodes have a four-port gigabit PCI-e NIC installed for additional reduntant network ports. The first node has an older Intel PRO/1000, whereas the other one has the PRO/1000's new brother the I350. The PRO/1000 works fine, but the I350 has two issues I've had to (mostly) work around.
