@@ -4,6 +4,7 @@ title: Solving De-ICE S1.110
 date: '2017-09-09 18:12:00'
 tags:
 - linux
+redirect_from: /solving-de-ice-s1-110
 ---
 
 The [De-ICE S1.110](https://www.vulnhub.com/entry/de-ice-s1110,9/) is an entry-level vulnerable live CD image, meant for learning the very basics of penetration testing. I, being an absolute beginner in such, decided to tackle the challenge. I started with the [De-ICE S1.100](https://www.vulnhub.com/entry/de-ice_s1100-level-1,8/) image, but ended up following a bunch of guides because of some weird OpenSSL decryption issues. However, this one I actually solved all by myself, applying the knowledge I gained from before. Here goes:

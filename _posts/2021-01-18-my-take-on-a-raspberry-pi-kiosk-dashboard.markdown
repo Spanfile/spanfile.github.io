@@ -5,6 +5,7 @@ date: '2021-01-18 18:53:26'
 tags:
 - homelab
 - linux
+redirect_from: /my-take-on-a-raspberry-pi-kiosk-dashboard
 ---
 
 Like everyone and their mother-in-law, I have a local Grafana instance with a bunch of dashboards filled with graphs and bar gauges about things in my network. I have a [desktop network rack](/2021/01/11/6u-desktop-network-rack-build.html) with space on the top for a spare 24" monitor I have, so I thought I'd make a "24/7" Grafana kiosk display on it with a Raspberry Pi.

@@ -5,6 +5,7 @@ date: '2020-11-15 10:52:39'
 tags:
 - networking
 - linux
+redirect_from: /i-thought-pihole-was-kinda-bad-so-i-made-my-own
 ---
 
 TL;DR: it's a Rust binary called [Singularity](https://crates.io/crates/singularity) (because of the gravity lists, domain blackholing? it sounds cool don't judge). You give it sources for malicious domains and it outputs a Lua script that the PowerDNS Recursor uses to automatically respond with a null route (`0.0.0.0`) to all the malicious domains. No web UIs (SSH is enough), no `dnsmasq`, no system-overtaking installers, just a program that outputs a single file.

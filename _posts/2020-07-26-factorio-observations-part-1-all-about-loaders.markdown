@@ -5,6 +5,7 @@ featured: true
 date: '2020-07-26 09:55:49'
 tags:
 - factorio
+redirect_from: /factorio-observations-part-1-all-about-loaders
 ---
 
 This post is part of an ongoing series about designs I've come up with and commonly use to do things in a heavily modded Factorio playthrough. These posts are kind-of living documents as well, which I update with corrections and observations as time goes along.

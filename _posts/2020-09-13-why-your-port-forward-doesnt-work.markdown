@@ -4,6 +4,7 @@ title: Why your port-forward doesn't work
 date: '2020-09-13 21:40:17'
 tags:
 - networking
+redirect_from: /why-your-port-forward-doesnt-work
 ---
 
 There's a million and then some guides online that tell you how to set up a port-forward in your home router box, but what about when the forward doesn't actually work? In this post I've collected the common reasons why after a port-forward you still can't get your friend to connect to your cool Minecraft server (or for that matter, any online service behind your router box), and what you may be able to do about it.

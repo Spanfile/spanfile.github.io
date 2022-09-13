@@ -5,6 +5,7 @@ date: '2017-08-09 18:08:00'
 tags:
 - programming
 - windows
+redirect_from: /c-gotchas
 ---
 
 Recently, I've been working on a couple of C# projects to try and bring myself up to date with .NET Core's latest development. Disregarding my issues with unit testing, I ran into some old 'gotchas' again that have been around for quite some time now, yet they are something I feel like aren't too well known at large. Here's my attempt to bring them out.
