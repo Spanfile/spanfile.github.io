@@ -3,11 +3,15 @@ email: me@spans.fi
 description: >- # this means to ignore newlines until "baseurl:"
 baseurl: ""
 url: "https://blog.spans.fi"
-twitter_username: 
-github_username:  spanfile
+twitter_username:
+github_username: spanfile
 
-theme: minima
+remote_theme: jekyll/minima
+minima:
+  skin: dark
+
 plugins:
   - jekyll-feed
   - jekyll-sitemap
   - jekyll-redirect-from
+  - jekyll-remote-theme
