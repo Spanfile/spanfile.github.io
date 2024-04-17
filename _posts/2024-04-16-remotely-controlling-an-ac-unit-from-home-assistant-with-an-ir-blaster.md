@@ -16,7 +16,13 @@ The Node-RED add-on for HassOS integrates very nicely into Home Assistant out of
 
 ![Home Assistant entities in Node-RED](/assets/2024/04/00-node-red-entities.png) ![Home Assistant device controls](/assets/2024/04/01-home-assistant-device.png)
 
-As explained in the previous post, the IR remote protocol contains a field that tells which button on the remote was pressed to generate that message. This can easily be included as auxiliary information in each entity node as an `msg.button`-field. However, the target temperature node proves a little more difficult since either the plus- or minus-buttons have to be "pressed" depending on if the target temperature was increased or decreased. Luckily the node has an option to emit both the entity's current value as well as its previous value, so those two can be compared and the `msg.button`-field set accordingly.
+As explained in the previous post, the IR remote protocol contains a field that tells which button on the remote was pressed to generate that message. This can easily be included as auxiliary information in each entity node as an `msg.button`-field.
+
+![Entity node output properties](/assets/2024/04/06-output-properties.png)
+
+However, the target temperature node proves a little more difficult since either the plus- or minus-buttons have to be "pressed" depending on if the target temperature was increased or decreased. Luckily the node has an option to emit both the entity's current value as well as its previous value, so those two can be compared and the `msg.button`-field set accordingly. Finally, to prevent an issue later on, the previous value is removed from the message.
+
+![Setting the plus/minus-buttons accordingly](/assets/2024/04/07-temperature-up-down.png)
 
 When any of the entities changes state, its state is emitted from the node and moved on to the IR encoding, however since the IR message contains the state of all these entities, their states have to be included in the Node-RED message as well. That's where this glorious spaghetti comes in:
 
