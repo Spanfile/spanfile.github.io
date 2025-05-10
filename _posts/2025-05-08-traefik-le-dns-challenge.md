@@ -44,17 +44,17 @@ newServer({address="1.1.1.1:853", tls="openssl", subjectName="one.one.one.one", 
 newServer({address="8.8.8.8:853", tls="openssl", subjectName="dns.google", validateCertificates=true})
 ```
 
-This way, when clients send unencrypted queries to the local resolver, they will be forwarded to the external resolvers encrypted. However, it is still possible for clients to just not use the local resolvers at all and send out unencrypted queries themselves. This can be mitigated with the local router/firewall.
+This way, when clients send unencrypted queries to the local resolver, they will be forwarded to the external resolvers encrypted. However, it is still possible for clients to just not use the local resolvers at all and send out unencrypted queries themselves. This can be mitigated with the local router/firewall by redirecting all outgoing DNS queries to the resolvers.
 
-## Forced DNS redirect to local resolvers and hairpin NAT
+## DNS redirect and hairpin NAT
 
 In the network's router, it is possible to create a [NAT rule](https://en.wikipedia.org/wiki/Network_address_translation) that redirects all outgoing DNS queries to the local resolvers. Alongside it is also required to create a so-called hairpin NAT rule to "complete" the redirection to prevent an issue with the redirection.
 
-This is what happens with just the redirection rule, without the hairpin rule. The user sends a DNS query to some external DNS resolver, and it traverses through the router. The router's NAT rule rewrites the destination address to the local resolver and forwards the query there. The resolver receives it and responds directly to the user, but the user will reject the response since it expects the response to arrive from its original destination, not the local resolver.
+This is what happens with just the redirection rule, without the hairpin rule. The user sends a DNS query to some external DNS resolver, and it traverses through the router. The router's NAT rule rewrites the destination address to the local resolver and forwards the query there. The resolver receives it and responds directly to the user, but the user will reject the response since it expects the response to arrive from the external resolver, not the local resolver.
 
 ![DNS NAT without hairpin](/assets/2025/05/dns-nat-no-hairpin.png)
 
-The hairpin NAT rule additionally masquerades the source address of the query as well to the router, and "fakes" the source address for the returning response. Like before, the user sends a DNS query to some external DNS resolver, but now the router changes both the destination and source address of the query. The destination is the local resolver, and the source is the router itself. Once the resolver responds to the router, it changes the response's destination address to the user and the source address to the address that was originally masqueraded, in this case the external resolver's address. It essentially fakes being the external resolver while forwarding all queries to the local resolver.
+The hairpin NAT rule additionally masquerades the source address of the query as well to the router, and "fakes" the source address for the returning response. Like before, the user sends a DNS query to some external DNS resolver, but now the router changes both the destination and source address of the query. The new destination is the local resolver, and the new source is the router itself. Once the resolver responds to the router, it changes the response's destination address to the user and the source address to the address that was originally masqueraded, in this case the external resolver's address. It essentially fakes being the external resolver while forwarding all queries to the local resolver.
 
 ![DNS NAT with hairpin](/assets/2025/05/dns-nat-with-hairpin.png)
 
@@ -68,7 +68,7 @@ chain=srcnat action=masquerade src-address-list=LAN out-interface-list=LAN
 chain=dstnat action=dst-nat to-addresses=10.40.0.2/31 to-ports=53 protocol=udp src-address-list=LAN dst-address-list=!PRIVATE dst-port=53
 
 ;;; force TCP DNS queries from LAN to local resolvers
-chain=dstnat action=dst-nat to-addresses=10.40.0.2/31 to-ports=53 protocol=udp src-address-list=LAN dst-address-list=!PRIVATE dst-port=53
+chain=dstnat action=dst-nat to-addresses=10.40.0.2/31 to-ports=53 protocol=tcp src-address-list=LAN dst-address-list=!PRIVATE dst-port=53
 ```
 
 # Why this can break ACME
@@ -109,7 +109,7 @@ Notice the issue here? In step 3, when the nameservers are queried directly, in 
 dig example.com @1.1.1.1 +norecurse
 ```
 
-Since Traefik/lego keeps receiving `REFUSED` for the query, it keeps retrying until finally timing out and canceling the ACME process. Luckily the fix for this is simple. Traefik has some options available to control the DNS propagation process, namely [`propagation.disableChecks`](https://doc.traefik.io/traefik/https/acme/#propagationdisablechecks) and [`propagation.delayBeforeChecks`](https://doc.traefik.io/traefik/https/acme/#propagationdelaybeforechecks). The former option disables the propagation checking entirely, but it comes with a caveat: it will notify the ACME CA that the DNS record is ready immediately after creating it, which very likely isn't enough time for it to propagate. The latter option adds a delay to this, which allows some time for the record to hopefully propagate. In Traefik's configuration it looks something like this.
+Since Traefik/lego keeps receiving `REFUSED` for the query, it keeps retrying until finally timing out and canceling the ACME process. Luckily the fix for this is simple. Traefik has some options available to control the DNS propagation process, namely [`propagation.disableChecks`](https://doc.traefik.io/traefik/https/acme/#propagationdisablechecks) and [`propagation.delayBeforeChecks`](https://doc.traefik.io/traefik/https/acme/#propagationdelaybeforechecks). The former option disables the propagation checking entirely, but it comes with a caveat: it will notify the ACME CA that the DNS record is ready immediately after creating it, which very likely isn't enough time for it to propagate. The latter option adds a delay to this, which allows some time for the record to hopefully propagate. In Traefik's configuration it looks something like this:
 
 ```yaml
 ...
